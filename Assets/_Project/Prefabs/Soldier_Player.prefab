@@ -1,0 +1,156 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &7657258641150308632
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_Name
+      value: Soldier_Player
+      objectReference: {fileID: 0}
+    - target: {fileID: 5180392884554198400, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 1c28b5f4a9577de4f8a14a8602de9040, type: 2}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8170022239922286426, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: team
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2204513771419289121}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7562117215716252456}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6826866449658254599}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4861513852096061480}
+  m_SourcePrefab: {fileID: 100100000, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+--- !u!1 &7292843905979958436 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+  m_PrefabInstance: {fileID: 7657258641150308632}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2204513771419289121
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7292843905979958436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d570764de9b89c242a8e56829a0abf13, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.PlayerSoldierInput
+  aimCamera: {fileID: 0}
+  maxAimDistance: 200
+  aimMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  readyAfterFiring: 3
+  crouchToggle: 1
+--- !u!114 &7562117215716252456
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7292843905979958436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b85c124833963348bd369ff07286429, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.PlayerHud
+  weapon: {fileID: 0}
+  health: {fileID: 0}
+  viewCamera: {fileID: 0}
+  crosshairColor: {r: 1, g: 1, b: 1, a: 0.85}
+  lineLength: 8
+  lineThickness: 2
+  minGap: 4
+  hitMarkerTime: 0.15
+--- !u!114 &6826866449658254599
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7292843905979958436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8db86a2de0f233043897b9eac215f94f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.PlayerRestart
+--- !u!114 &4861513852096061480
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7292843905979958436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdc40c5cf414f9747ba0b76216ee99a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.PlayerCover
+  reach: 1.4
+  wallGap: 0.45
+  coverMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  lowProbe: 0.8
+  highProbe: 1.45
+  edgeMargin: 0.25
+  leaveThreshold: 0.7

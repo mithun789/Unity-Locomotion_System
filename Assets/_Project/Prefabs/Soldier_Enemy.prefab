@@ -1,0 +1,170 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8867911733691755653
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_Name
+      value: Soldier_Enemy
+      objectReference: {fileID: 0}
+    - target: {fileID: 5180392884554198400, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 50e4af60773de944c9a0af5219a76fcf, type: 2}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7170057013310225214, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5098515596436451212}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7332657293592869387}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1642476447551159482}
+    - targetCorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5791566091755615652}
+  m_SourcePrefab: {fileID: 100100000, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+--- !u!1 &8385782162430105913 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1112792417087731132, guid: d8ea8286becb3914bb3c467bf33a2368, type: 3}
+  m_PrefabInstance: {fileID: 8867911733691755653}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &5098515596436451212
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8385782162430105913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7fefa23194ea0c34b8d2f89abf721e5e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.AIPerception
+  fieldOfView: 110
+  sightRange: 40
+  sightMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  scanInterval: 0.2
+  hearingRange: 30
+  nearMissRadius: 2.5
+  attackerPreference: 0.5
+  attackerMemory: 5
+--- !u!114 &7332657293592869387
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8385782162430105913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01ca77ac066f10d47adb61ce4c727946, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.AIPathFollower
+  repathInterval: 0.5
+  arriveDistance: 0.5
+  cornerDistance: 0.35
+  destinationSnap: 2
+--- !u!114 &1642476447551159482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8385782162430105913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 363ba7259c44c18439675937bc6c4115, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.AISoldierBrain
+  route: {fileID: 0}
+  waitAtPoint: {x: 1, y: 2.5}
+  searchTime: 4
+  runDistance: 8
+  reactionDelay: {x: 0.3, y: 0.6}
+  burstShots: {x: 3, y: 6}
+  burstPause: {x: 0.3, y: 0.8}
+  loseTargetTime: 1.5
+  maxAimError: 1.2
+  minAimError: 0.15
+  aimSettleTime: 2.5
+  aimWobbleSpeed: 1.5
+  underFireWindow: 1.5
+  coverSearchInterval: 1
+  coverGiveUpTime: 8
+  lineOfFireMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &5791566091755615652
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8385782162430105913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5384d6f7f1fa6014bb5e76c6d7cde067, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WarMission.AICover
+  searchRadius: 18
+  minThreatDistance: 5
+  blockMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  hideTime: {x: 1, y: 2.2}
+  peekTime: {x: 1.4, y: 2.6}
+  peekSettle: 0.35
+  stepOut: 0.9
+  sprintDistance: 3
