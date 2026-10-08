@@ -28,6 +28,12 @@ namespace WarMission
         [Tooltip("How fast the body turns toward the aim point, degrees per second.")]
         [SerializeField] float turnSpeed = 540f;
 
+        [Header("Turn in place")]
+        [Tooltip("Standing still, the body keeps its facing (feet planted) and the spine aims. SoldierAnimator plays a turn clip past its angle; the clip's root rotation turns the body.")]
+        [SerializeField] bool turnInPlace = true;
+        [Tooltip("Below this speed with no move input the soldier counts as standing still, m/s.")]
+        [SerializeField] float standStillSpeed = 0.2f;
+
         [Header("Cover")]
         [Tooltip("How strongly the soldier is pulled to the cover anchor's distance from the wall.")]
         [SerializeField] float coverPull = 5f;
@@ -58,6 +64,12 @@ namespace WarMission
         /// <summary>High cover looking out to the left: mirrored cover pose, rifle in the left hand.</summary>
         public bool IsCoverFaceLeft { get; private set; }
 
+        /// <summary>No move input and (almost) no velocity: the feet stay planted and turn clips turn the body.</summary>
+        public bool IsStandingStill { get; private set; }
+
+        /// <summary>Signed yaw from the body's forward to the aim point, degrees (positive = right).</summary>
+        public float AimYawDelta { get; private set; }
+
         /// <summary>True only on the frame a jump starts.</summary>
         public bool JumpedThisFrame { get; private set; }
 
@@ -82,7 +94,12 @@ namespace WarMission
             // Low cover: kneel facing the cover. High cover: back against it (the rifle cover clips face away).
             Quaternion facing = !IsInCover ? aimRotation
                               : Quaternion.LookRotation(IsCoverLow ? coverForward : -coverForward);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, facing, turnSpeed * dt);
+            AimYawDelta = Vector3.SignedAngle(transform.forward, aimRotation * Vector3.forward, Vector3.up);
+            IsStandingStill = turnInPlace && !IsInCover && !IsJumping && !command.Jump
+                              && command.Move.sqrMagnitude < 0.01f && Velocity.sqrMagnitude < standStillSpeed * standStillSpeed;
+            // Standing still: no sliding turn. ApplyRootYaw (turn clips) turns the body instead.
+            if (!IsStandingStill)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, facing, turnSpeed * dt);
 
             JumpedThisFrame = false;
             if (IsJumping && Time.time >= jumpEndTime) IsJumping = false;
@@ -127,6 +144,15 @@ namespace WarMission
             float speed = IsCoverLow ? SoldierClipSpeeds.CoverSneakLow : SoldierClipSpeeds.CoverSneakHigh;
             float gap = Vector3.Dot(command.CoverAnchor - transform.position, coverForward);
             return along * (Mathf.Clamp(side, -1f, 1f) * speed) + coverForward * Mathf.Clamp(gap * coverPull, -2f, 2f);
+        }
+
+        /// <summary>Root rotation from the Animator (turn-in-place clips; every other clip has it baked).</summary>
+        public void ApplyRootYaw(Quaternion deltaRotation)
+        {
+            float yaw = deltaRotation.eulerAngles.y;
+            if (yaw > 180f) yaw -= 360f;
+            if (Mathf.Abs(yaw) > 0.0001f)
+                transform.rotation = Quaternion.AngleAxis(yaw, Vector3.up) * transform.rotation;
         }
 
         /// <summary>Zero the velocity and end any jump (used when traversal takes over).</summary>

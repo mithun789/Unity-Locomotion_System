@@ -36,6 +36,13 @@ namespace WarMission.EditorTools
             controller.AddParameter("InCover", AnimatorControllerParameterType.Bool);
             controller.AddParameter("CoverLow", AnimatorControllerParameterType.Bool);
             controller.AddParameter("CoverMirror", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("Turn", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("TurnDir", AnimatorControllerParameterType.Float);
+            controller.AddParameter(new AnimatorControllerParameter
+            {
+                name = "TurnRate", type = AnimatorControllerParameterType.Float, defaultFloat = 1f
+            });
+            controller.AddParameter("ArmsAim", AnimatorControllerParameterType.Float);
 
             controller.AddLayer("Base Layer");
             AnimatorStateMachine sm = controller.layers[0].stateMachine;
@@ -96,6 +103,7 @@ namespace WarMission.EditorTools
             land.exitTime = 0.85f;
             land.duration = 0.2f;
 
+            BuildTurnStates(sm, stand, crouch, jump);
             BuildCoverStates(sm, controller, stand);
 
             // Traversal moves: played from code (SoldierTraversal) with CrossFade; the exit transition is a fallback.
@@ -173,6 +181,50 @@ namespace WarMission.EditorTools
         }
 
         /// <summary>
+        /// Turn in place: 90 degree clips whose root rotation is not baked (MixamoImportProcessor), so the
+        /// body turns through SoldierRootMotion. SoldierAnimator fires "Turn" with TurnDir -1 / +1 while
+        /// standing still; moving cancels the turn.
+        /// </summary>
+        static void BuildTurnStates(AnimatorStateMachine sm, AnimatorState stand, AnimatorState crouch, AnimatorState jump)
+        {
+            AddTurnState(sm, stand, "TurnLeft", "Rifle_TurnInPlace_Left", -1f, new Vector3(40f, -60f), jump);
+            AddTurnState(sm, stand, "TurnRight", "Rifle_TurnInPlace_Right", 1f, new Vector3(40f, 20f), jump);
+            AddTurnState(sm, crouch, "CrouchTurnLeft", "Rifle_CrouchTurn90_Left", -1f, new Vector3(40f, 120f), null);
+            AddTurnState(sm, crouch, "CrouchTurnRight", "Rifle_CrouchTurn90_Right", 1f, new Vector3(40f, 190f), null);
+        }
+
+        static void AddTurnState(AnimatorStateMachine sm, AnimatorState idle, string name, string clip, float dir,
+                                 Vector3 position, AnimatorState jump)
+        {
+            AnimatorState turn = sm.AddState(name, position);
+            turn.motion = Clip(clip);
+            turn.tag = SoldierAnimator.TurnStateTag;
+            turn.speedParameterActive = true;
+            turn.speedParameter = "TurnRate";
+
+            AnimatorStateTransition enter = idle.AddTransition(turn);
+            enter.hasExitTime = false;
+            enter.duration = 0.15f;
+            enter.AddCondition(AnimatorConditionMode.If, 0f, "Turn");
+            enter.AddCondition(dir < 0f ? AnimatorConditionMode.Less : AnimatorConditionMode.Greater, 0f, "TurnDir");
+
+            // Moving cancels the turn; otherwise it plays out.
+            AnimatorStateTransition move = turn.AddTransition(idle);
+            move.hasExitTime = false;
+            move.duration = 0.2f;
+            move.AddCondition(AnimatorConditionMode.Greater, 0.3f, "Speed");
+            AddExit(turn, idle, 0.9f, 0.15f);
+
+            if (jump != null)
+            {
+                AnimatorStateTransition toJump = turn.AddTransition(jump);
+                toJump.hasExitTime = false;
+                toJump.duration = 0.1f;
+                toJump.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
+            }
+        }
+
+        /// <summary>
         /// Back-to-wall high cover with the rifle. The soldier's transform faces away from the wall (SoldierMotor);
         /// MoveX slides along it (left sneak at -speed, right at +speed). Low cover uses the crouch states
         /// (kneel facing the cover, rifle in hand) instead.
@@ -237,8 +289,12 @@ namespace WarMission.EditorTools
             controller.layers = layers;
 
             AnimatorStateMachine sm = controller.layers[index].stateMachine;
+            // ArmsAim 0 = gun down (moving relaxed), 1 = aim idle arms (standing turns with the rifle up).
+            BlendTree arms = Create1DTree(controller, "ArmsTree", "ArmsAim");
+            arms.AddChild(Clip("Rifle_Idle_GunDown"), 0f);
+            arms.AddChild(Clip("Rifle_AimIdle"), 1f);
             AnimatorState carry = sm.AddState("GunDown", new Vector3(300f, 0f));
-            carry.motion = Clip("Rifle_Idle_GunDown");
+            carry.motion = arms;
             sm.defaultState = carry;
         }
 

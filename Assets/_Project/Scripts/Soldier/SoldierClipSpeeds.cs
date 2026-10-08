@@ -44,5 +44,10 @@ namespace WarMission
         public const float CoverSneakHigh = 1.08f;
         /// <summary>Crouched back-to-wall sidestep along low cover ("crouched sneaking").</summary>
         public const float CoverSneakLow = 1.0f;
+
+        /// <summary>Body turn of the turn-in-place clips, degrees (root rotation, measured).</summary>
+        public const float TurnLeftAngle = 90f;
+        public const float TurnRightAngle = 84f;
+        public const float CrouchTurnAngle = 90f;
     }
 }

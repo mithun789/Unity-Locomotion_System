@@ -73,8 +73,27 @@ namespace WarMission.EditorTools
             importer.clipAnimations = new[] { Configure(defaults[0], name) };
         }
 
+        // Actions whose root rotation is NOT baked: the turn is extracted as root motion and
+        // SoldierRootMotion applies it to the soldier, so the pose stays forward-facing.
+        static readonly HashSet<string> TurnActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "TurnInPlace", "CrouchTurn90"
+        };
+
+        // Body yaw of each turn clip's first frame (measured). The offset cancels it, so the first frame
+        // faces the soldier's forward like the idle it starts from.
+        static readonly Dictionary<string, float> TurnStartYaw = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Rifle_TurnInPlace_Left", 54f },
+            { "Rifle_TurnInPlace_Right", -4f },
+            { "Rifle_CrouchTurn90_Left", 33f },
+            { "Rifle_CrouchTurn90_Right", 33f },
+        };
+
         static ModelImporterClipAnimation Configure(ModelImporterClipAnimation source, string name)
         {
+            string[] parts = name.Split('_');
+            bool turn = parts.Length >= 2 && TurnActions.Contains(parts[1]);
             return new ModelImporterClipAnimation
             {
                 name = name,
@@ -88,8 +107,9 @@ namespace WarMission.EditorTools
                 // Rotation and height are baked into the pose. XZ is extracted as root motion
                 // (not baked) so clips downloaded without "In Place" still stay in place;
                 // the Animator ignores root motion and the NavMeshAgent moves the soldier.
-                lockRootRotation = true,
-                keepOriginalOrientation = true,
+                lockRootRotation = !turn,
+                keepOriginalOrientation = !turn,
+                rotationOffset = turn && TurnStartYaw.TryGetValue(name, out float startYaw) ? -startYaw : 0f,
                 lockRootHeightY = true,
                 keepOriginalPositionY = true,
                 heightFromFeet = false,

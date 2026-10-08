@@ -22,6 +22,14 @@ namespace WarMission
         static readonly int InCoverId = Animator.StringToHash("InCover");
         static readonly int CoverLowId = Animator.StringToHash("CoverLow");
         static readonly int CoverMirrorId = Animator.StringToHash("CoverMirror");
+        static readonly int TurnId = Animator.StringToHash("Turn");
+        static readonly int TurnDirId = Animator.StringToHash("TurnDir");
+        static readonly int TurnRateId = Animator.StringToHash("TurnRate");
+        static readonly int ArmsAimId = Animator.StringToHash("ArmsAim");
+        static readonly int TurnTag = Animator.StringToHash(TurnStateTag);
+
+        /// <summary>Tag on the turn-in-place states (standing and crouched).</summary>
+        public const string TurnStateTag = "Turn";
 
         /// <summary>Mirrored high cover state (looks out left, rifle in the left hand). WeaponGrip follows it.</summary>
         public const string CoverMirrorState = "CoverHighMirror";
@@ -43,6 +51,16 @@ namespace WarMission
         [Tooltip("Crossfade time between relaxed idle clips, in seconds.")]
         [SerializeField] float idleCrossfade = 0.6f;
 
+        [Header("Turn in place (standing still)")]
+        [Tooltip("Aim this far off the body's forward starts a 90 degree turn clip, relaxed (degrees). Below it the spine aims.")]
+        [SerializeField] float turnAngleRelaxed = 60f;
+        [Tooltip("Same, with the rifle up (degrees).")]
+        [SerializeField] float turnAngleAimed = 45f;
+        [Tooltip("Turn clip playback speed, relaxed and with the rifle up.")]
+        [SerializeField] Vector2 turnRate = new Vector2(1f, 1.5f);
+        [Tooltip("The turn is scaled to end facing the aim, within this fraction of the clip's own angle.")]
+        [SerializeField] float turnScaleRange = 0.25f;
+
         [Header("Relaxed arms while moving")]
         [Tooltip("Speed at which the relaxed arms are fully on, m/s.")]
         [SerializeField] float relaxedArmsSpeed = 0.5f;
@@ -57,6 +75,8 @@ namespace WarMission
         float nextIdleSwitch;
         int relaxedArmsLayer;
         float relaxedArmsWeight;
+        float armsAim;
+        SoldierRootMotion rootMotion;
 
         void Awake()
         {
@@ -68,6 +88,9 @@ namespace WarMission
             nextIdleSwitch = Time.time + Random.Range(idleSwitchTime.x, idleSwitchTime.y);
             if (animator == null) animator = GetComponentInChildren<Animator>();
             relaxedArmsLayer = animator.GetLayerIndex(RelaxedArmsLayer);
+            rootMotion = animator.GetComponent<SoldierRootMotion>();
+            if (rootMotion == null) rootMotion = animator.gameObject.AddComponent<SoldierRootMotion>();
+            rootMotion.Init(motor);
 
             // Movement comes from the NavMeshAgent only. Off-screen soldiers keep animating
             // so aim, muzzle and head positions stay correct for AI.
@@ -119,7 +142,10 @@ namespace WarMission
 
             bool reloading = weapon != null && weapon.IsReloading;
             animator.SetBool(AimingId, command.Aim && !reloading);
-            animator.SetFloat(AimBlendId, aim != null ? aim.ReadyWeight : 1f);
+            float ready = aim != null ? aim.ReadyWeight : 1f;
+            animator.SetFloat(AimBlendId, ready);
+
+            bool turning = UpdateTurnInPlace(ready);
 
             if (Time.time >= nextIdleSwitch)
             {
@@ -134,16 +160,53 @@ namespace WarMission
             {
                 float speed = motor.Velocity.magnitude;
                 bool sprintForward = motor.IsSprinting && motor.LocalVelocity.z > 0.7f * speed;
-                float ready = aim != null ? aim.ReadyWeight : 1f;
                 // Not while crouched: the crouch clips hold the rifle well, and standing arms on a leaning
                 // torso put the rifle behind the back.
                 bool crouched = motor.IsCrouched || motor.IsCoverLow;
                 float target = (1f - ready) * Mathf.Clamp01(speed / relaxedArmsSpeed) * (sprintForward || crouched ? 0f : 1f);
                 // High cover: the rifle cover clips hold the rifle themselves.
                 if (motor.IsInCover) target = 0f;
+                // Standing turns: the turn clips carry the rifle differently from the idles, so the arms come
+                // from the idle (gun down relaxed, aim idle with the rifle up) and the hold stays the same.
+                if (turning && !crouched)
+                {
+                    target = 1f;
+                    armsAim = ready;
+                }
+                else if (target > 0f) armsAim = 0f;
+                animator.SetFloat(ArmsAimId, armsAim);
                 relaxedArmsWeight = Mathf.MoveTowards(relaxedArmsWeight, target, relaxedArmsBlend * dt);
                 animator.SetLayerWeight(relaxedArmsLayer, relaxedArmsWeight);
             }
         }
+
+        /// <summary>
+        /// Standing still: start a 90 degree turn clip when the aim is too far off the body's forward.
+        /// The clip's root rotation turns the body (SoldierRootMotion). Returns true while a turn plays.
+        /// </summary>
+        bool UpdateTurnInPlace(float ready)
+        {
+            bool turning = IsTurnState(animator.GetCurrentAnimatorStateInfo(0))
+                           || (animator.IsInTransition(0) && IsTurnState(animator.GetNextAnimatorStateInfo(0)));
+            animator.SetFloat(TurnRateId, Mathf.Lerp(turnRate.x, turnRate.y, ready));
+            if (!motor.IsStandingStill)
+            {
+                animator.ResetTrigger(TurnId);
+                return turning;
+            }
+            float limit = Mathf.Lerp(turnAngleRelaxed, turnAngleAimed, ready);
+            if (!turning && Mathf.Abs(motor.AimYawDelta) > limit)
+            {
+                float dir = Mathf.Sign(motor.AimYawDelta);
+                animator.SetFloat(TurnDirId, dir);
+                animator.SetTrigger(TurnId);
+                float clipAngle = motor.IsCrouched ? SoldierClipSpeeds.CrouchTurnAngle
+                                : dir < 0f ? SoldierClipSpeeds.TurnLeftAngle : SoldierClipSpeeds.TurnRightAngle;
+                rootMotion.YawScale = Mathf.Clamp(Mathf.Abs(motor.AimYawDelta) / clipAngle, 1f - turnScaleRange, 1f + turnScaleRange);
+            }
+            return turning;
+        }
+
+        static bool IsTurnState(AnimatorStateInfo state) => state.tagHash == TurnTag;
     }
 }

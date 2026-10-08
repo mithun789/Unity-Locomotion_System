@@ -357,9 +357,17 @@ namespace WarMission
             return member == null || !member.IsAlive || self.IsEnemyOf(member);
         }
 
-        /// <summary>Only shoot once the body has turned toward the target.</summary>
+        /// <summary>
+        /// Only shoot once the rifle points at the target. Standing still the feet stay planted and the spine
+        /// aims, so the body itself may be up to the turn-in-place angle off.
+        /// </summary>
         bool IsFacing(Vector3 point)
         {
+            if (weapon != null && weapon.Muzzle != null)
+            {
+                Vector3 toTarget = point - weapon.Muzzle.position;
+                return Vector3.Angle(weapon.Muzzle.forward, toTarget) < 10f;
+            }
             Vector3 dir = point - transform.position;
             dir.y = 0f;
             return Vector3.Angle(transform.forward, dir) < 20f;
