@@ -36,28 +36,20 @@ namespace WarMission.EditorTools
         [MenuItem("War Mission/Build Soldier Prefab")]
         public static void Build()
         {
-            RiflePose pose = MeasureRiflePose();
+            RiflePose pose = MeasureRiflePose(CharacterPath);
             GameObject root = PrefabUtility.LoadPrefabContents(PrefabPath);
             try
             {
-                Animator animator = root.GetComponentInChildren<Animator>();
-
-                BuildRagdoll(animator, root.transform);
-                Transform rifle = BuildRifle(animator, pose, out Transform muzzle, out WeaponEffects effects);
+                Animator animator = root.transform.Find(BaseModelName).GetComponent<Animator>();
                 RemoveHandRig(animator);
 
                 GetOrAdd<TeamMember>(root);
                 var health = GetOrAdd<Health>(root);
-                var weapon = GetOrAdd<SoldierWeapon>(root);
-                var aim = GetOrAdd<SoldierAim>(root);
-                var ragdoll = GetOrAdd<SoldierRagdoll>(root);
-                var grip = GetOrAdd<WeaponGrip>(root);
-
-                SetRefs(weapon, ("muzzle", muzzle), ("effects", effects));
-                SetRefs(grip, ("animator", animator), ("rifle", rifle));
-                SetRefs(aim, ("animator", animator), ("weapon", weapon), ("grip", grip));
-                SetRefs(ragdoll, ("animator", animator), ("weapon", rifle));
-                SetRefs(root.GetComponent<SoldierAnimator>(), ("animator", animator));
+                GetOrAdd<SoldierWeapon>(root);
+                GetOrAdd<SoldierAim>(root);
+                GetOrAdd<SoldierRagdoll>(root);
+                GetOrAdd<WeaponGrip>(root);
+                BuildBodyParts(root, animator, pose);
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
                 Debug.Log($"[SoldierPrefabBuilder] Built {PrefabPath} (health {health.MaxHealth})");
@@ -72,6 +64,85 @@ namespace WarMission.EditorTools
             BuildVariant(PlayerPath, Team.Ally, allyBody, typeof(PlayerCover), typeof(PlayerSoldierInput), typeof(PlayerHud), typeof(PlayerRestart));
             BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
             BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
+
+            // Imported bodies (Blender exports, see ImportedAssetBuilder). The enemy keeps the mannequin until
+            // the Ghost model is rigged.
+            RiflePose polishPose = MeasureRiflePose(ImportedAssetBuilder.PolishModel);
+            ApplyBody(PlayerPath, ImportedAssetBuilder.PolishModel, polishPose);
+            ApplyBody(AllyPath, ImportedAssetBuilder.PolishModel, polishPose);
+        }
+
+        /// <summary>Name of the mannequin model child in Soldier.prefab.</summary>
+        const string BaseModelName = "Model";
+        /// <summary>Name of an imported body added by a variant (the base model is switched off).</summary>
+        const string BodyModelName = "Body";
+
+        /// <summary>
+        /// Gives a variant another body: adds the model as a child, switches the base mannequin off, and builds
+        /// the ragdoll and rifle on the new skeleton. Adding (instead of replacing the base) keeps the variant
+        /// object IDs, so scene instances and their references survive.
+        /// </summary>
+        static void ApplyBody(string variantPath, string modelPath, RiflePose pose)
+        {
+            GameObject root = PrefabUtility.LoadPrefabContents(variantPath);
+            try
+            {
+                Transform baseModel = root.transform.Find(BaseModelName);
+                Transform body = root.transform.Find(BodyModelName);
+                var source = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+                if (body != null && PrefabUtility.GetCorrespondingObjectFromSource(body.gameObject) != source)
+                {
+                    Object.DestroyImmediate(body.gameObject);
+                    body = null;
+                }
+                if (body == null)
+                {
+                    var model = (GameObject)PrefabUtility.InstantiatePrefab(source, root.transform);
+                    model.name = BodyModelName;
+                    body = model.transform;
+                }
+                body.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                baseModel.gameObject.SetActive(false);
+
+                Animator baseAnimator = baseModel.GetComponent<Animator>();
+                Animator animator = GetOrAdd<Animator>(body.gameObject);
+                animator.runtimeAnimatorController = baseAnimator.runtimeAnimatorController;
+                animator.avatar = LoadAvatar(modelPath);
+                animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+                BuildBodyParts(root, animator, pose);
+                PrefabUtility.SaveAsPrefabAsset(root, variantPath);
+                Debug.Log($"[SoldierPrefabBuilder] {variantPath}: body {modelPath}");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        /// <summary>Ragdoll and rifle on the given skeleton, and the root components pointed at them.</summary>
+        static void BuildBodyParts(GameObject root, Animator animator, RiflePose pose)
+        {
+            BuildRagdoll(animator, root.transform);
+            Transform rifle = BuildRifle(animator, pose, out Transform muzzle, out WeaponEffects effects);
+
+            var weapon = root.GetComponent<SoldierWeapon>();
+            var aim = root.GetComponent<SoldierAim>();
+            var grip = root.GetComponent<WeaponGrip>();
+            SetRefs(weapon, ("muzzle", muzzle), ("effects", effects));
+            SetRefs(grip, ("animator", animator), ("rifle", rifle));
+            SetRefs(aim, ("animator", animator), ("weapon", weapon), ("grip", grip));
+            SetRefs(root.GetComponent<SoldierRagdoll>(), ("animator", animator), ("weapon", rifle));
+            SetRefs(root.GetComponent<SoldierAnimator>(), ("animator", animator));
+            SetRefs(root.GetComponent<SoldierTraversal>(), ("animator", animator));
+        }
+
+        static Avatar LoadAvatar(string modelPath)
+        {
+            foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(modelPath))
+                if (o is Avatar avatar) return avatar;
+            return null;
         }
 
         /// <summary>Creates (or updates) a variant of Soldier.prefab with a team, team colour and brain components.</summary>
@@ -107,9 +178,9 @@ namespace WarMission.EditorTools
 
         // ---------------------------------------------------------------- rifle pose
 
-        static RiflePose MeasureRiflePose()
+        static RiflePose MeasureRiflePose(string modelPath)
         {
-            var model = Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPath));
+            var model = Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(modelPath));
             model.hideFlags = HideFlags.HideAndDontSave;
             try
             {
@@ -158,17 +229,24 @@ namespace WarMission.EditorTools
             Vector3 s = hand.lossyScale;
             rifle.localScale = new Vector3(1f / s.x, 1f / s.y, 1f / s.z); // rifle children are in metres
 
-            Material body = LoadOrCreateMaterial("Rifle", "HDRP/Lit", new Color(0.12f, 0.12f, 0.13f), 0f);
-            AddPart(rifle, "Body", PrimitiveType.Cube, new Vector3(0f, 0.045f, 0.1f), Vector3.zero, new Vector3(0.055f, 0.09f, 0.42f), body);
-            AddPart(rifle, "Barrel", PrimitiveType.Cylinder, new Vector3(0f, 0.06f, 0.48f), new Vector3(90f, 0f, 0f), new Vector3(0.03f, 0.14f, 0.03f), body);
-            AddPart(rifle, "Stock", PrimitiveType.Cube, new Vector3(0f, 0.03f, -0.2f), Vector3.zero, new Vector3(0.045f, 0.11f, 0.24f), body);
-            AddPart(rifle, "Magazine", PrimitiveType.Cube, new Vector3(0f, -0.06f, 0.14f), new Vector3(-12f, 0f, 0f), new Vector3(0.035f, 0.16f, 0.07f), body);
-            AddPart(rifle, "Grip", PrimitiveType.Cube, new Vector3(0f, -0.02f, 0f), new Vector3(-15f, 0f, 0f), new Vector3(0.03f, 0.09f, 0.035f), body);
-            AddPart(rifle, "Sight", PrimitiveType.Cube, new Vector3(0f, 0.1f, 0.05f), Vector3.zero, new Vector3(0.02f, 0.02f, 0.12f), body);
+            // M4 from Blender (ImportedAssetBuilder): its RightPalm / LeftPalm markers go on the rifle origin
+            // and +Z; the Muzzle marker is the shot origin (model +Z is the bore).
+            // Work in the asset's own space (root at the origin with its import rotation): there the bore is
+            // +Z and up is +Y. The root's own rotation is only the FBX axis conversion.
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(ImportedAssetBuilder.M4Model);
+            Vector3 rightPalm = FindDeep(asset.transform, "RightPalm").position;
+            Vector3 leftPalm = FindDeep(asset.transform, "LeftPalm").position;
+            Vector3 muzzlePoint = FindDeep(asset.transform, "Muzzle").position;
+            Quaternion toRifle = Quaternion.Inverse(Quaternion.LookRotation(leftPalm - rightPalm, Vector3.up));
+
+            var m4 = (GameObject)PrefabUtility.InstantiatePrefab(asset, rifle);
+            m4.name = "M4";
+            m4.transform.localRotation = toRifle * asset.transform.localRotation;
+            m4.transform.localPosition = toRifle * (asset.transform.localPosition - rightPalm);
 
             muzzle = new GameObject("Muzzle").transform;
             muzzle.SetParent(rifle, false);
-            muzzle.localPosition = new Vector3(0f, 0.06f, 0.63f);
+            muzzle.SetLocalPositionAndRotation(toRifle * (muzzlePoint - rightPalm), toRifle);
 
             effects = BuildEffects(rifle, muzzle);
             return rifle;
@@ -388,6 +466,13 @@ namespace WarMission.EditorTools
         static float Scale(Transform t) => t.lossyScale.x;
 
         // ---------------------------------------------------------------- helpers
+
+        static Transform FindDeep(Transform parent, string name)
+        {
+            foreach (Transform t in parent.GetComponentsInChildren<Transform>(true))
+                if (t.name == name) return t;
+            throw new System.ArgumentException($"{parent.name} has no child '{name}'");
+        }
 
         static T GetOrAdd<T>(GameObject go) where T : Component =>
             go.TryGetComponent(out T existing) ? existing : go.AddComponent<T>();

@@ -1,0 +1,88 @@
+{
+ "materials": [
+  {
+   "name": "Body",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Body_base.png",
+   "mrMap": "Body_mr.png",
+   "normalMap": "Body_normal.png",
+   "aoInRed": true
+  },
+  {
+   "name": "Keymod_material",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Keymod_material_base.png",
+   "mrMap": "Keymod_material_mr.png",
+   "normalMap": "Keymod_material_normal.png",
+   "aoInRed": true
+  },
+  {
+   "name": "Magazine_Light",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Magazine_Light_base.png",
+   "mrMap": "Magazine_Light_mr.png",
+   "normalMap": "Magazine_Light_normal.png",
+   "aoInRed": true
+  },
+  {
+   "name": "Grip_Default",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Grip_Default_base.png",
+   "mrMap": "Grip_Default_mr.png",
+   "normalMap": "Grip_Default_normal.png",
+   "aoInRed": true
+  },
+  {
+   "name": "Classic_Stock",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Classic_Stock_base.png",
+   "mrMap": "Classic_Stock_mr.png",
+   "normalMap": "Classic_Stock_normal.png",
+   "aoInRed": true
+  },
+  {
+   "name": "Flash_Hider",
+   "baseColor": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Flash_Hider_base.png",
+   "mrMap": "Flash_Hider_mr.png",
+   "normalMap": "Flash_Hider_normal.png",
+   "aoInRed": true
+  }
+ ]
+}

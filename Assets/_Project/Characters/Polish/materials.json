@@ -1,0 +1,200 @@
+{
+ "materials": [
+  {
+   "name": "magb",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "magb_base.png",
+   "mrMap": "magb_mr.png",
+   "normalMap": "magb_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_filter",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_filter_base.png",
+   "mrMap": "pol_filter_mr.png",
+   "normalMap": "pol_filter_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "glass",
+   "baseColor": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "",
+   "mrMap": "glass_mr.png",
+   "normalMap": "",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_hand",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_hand_base.png",
+   "mrMap": "pol_hand_mr.png",
+   "normalMap": "pol_hand_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "material",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "material_base.png",
+   "mrMap": "material_mr.png",
+   "normalMap": "material_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_gas_mask",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_gas_mask_base.png",
+   "mrMap": "pol_gas_mask_mr.png",
+   "normalMap": "pol_gas_mask_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_helmet",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_helmet_base.png",
+   "mrMap": "pol_helmet_mr.png",
+   "normalMap": "pol_helmet_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "WZ96_Beryl",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "WZ96_Beryl_base.png",
+   "mrMap": "WZ96_Beryl_mr.png",
+   "normalMap": "WZ96_Beryl_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "boot_war1",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "boot_war1_base.png",
+   "mrMap": "boot_war1_mr.png",
+   "normalMap": "boot_war1_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_bproof",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_bproof_base.png",
+   "mrMap": "pol_bproof_mr.png",
+   "normalMap": "pol_bproof_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_head",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_head_base.png",
+   "mrMap": "pol_head_mr.png",
+   "normalMap": "pol_head_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_jaket",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_jaket_base.png",
+   "mrMap": "pol_jaket_mr.png",
+   "normalMap": "pol_jaket_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "RGZ89",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "RGZ89_base.png",
+   "mrMap": "RGZ89_mr.png",
+   "normalMap": "RGZ89_normal.png",
+   "aoInRed": false
+  },
+  {
+   "name": "pol_pants",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 0.0,
+   "baseMap": "pol_pants_base.png",
+   "mrMap": "pol_pants_mr.png",
+   "normalMap": "pol_pants_normal.png",
+   "aoInRed": false
+  }
+ ]
+}
