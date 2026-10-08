@@ -35,7 +35,7 @@ namespace WarMission
         public const string CoverMirrorState = "CoverHighMirror";
 
         /// <summary>Relaxed idle clips in the Animator's RelaxedIdle blend (thresholds 0..count-1).</summary>
-        public const int RelaxedIdleCount = 3;
+        public const int RelaxedIdleCount = 1;
         /// <summary>Arms-only layer that carries the rifle low while moving without aiming.</summary>
         public const string RelaxedArmsLayer = "RelaxedArms";
 
@@ -55,7 +55,7 @@ namespace WarMission
         [Tooltip("Aim this far off the body's forward starts a 90 degree turn clip, relaxed (degrees). Below it the spine aims.")]
         [SerializeField] float turnAngleRelaxed = 60f;
         [Tooltip("Same, with the rifle up (degrees).")]
-        [SerializeField] float turnAngleAimed = 45f;
+        [SerializeField] float turnAngleAimed = 35f;
         [Tooltip("Turn clip playback speed, relaxed and with the rifle up.")]
         [SerializeField] Vector2 turnRate = new Vector2(1f, 1.5f);
         [Tooltip("The turn is scaled to end facing the aim, within this fraction of the clip's own angle.")]

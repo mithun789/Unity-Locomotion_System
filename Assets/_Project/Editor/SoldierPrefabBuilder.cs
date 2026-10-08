@@ -49,6 +49,7 @@ namespace WarMission.EditorTools
                 GetOrAdd<SoldierAim>(root);
                 GetOrAdd<SoldierRagdoll>(root);
                 GetOrAdd<WeaponGrip>(root);
+                GetOrAdd<WeaponShoulder>(root);
                 BuildBodyParts(root, animator, pose);
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -133,7 +134,9 @@ namespace WarMission.EditorTools
             var grip = root.GetComponent<WeaponGrip>();
             SetRefs(weapon, ("muzzle", muzzle), ("effects", effects));
             SetRefs(grip, ("animator", animator), ("rifle", rifle));
-            SetRefs(aim, ("animator", animator), ("weapon", weapon), ("grip", grip));
+            var shoulder = root.GetComponent<WeaponShoulder>();
+            SetRefs(shoulder, ("animator", animator), ("rifle", rifle));
+            SetRefs(aim, ("animator", animator), ("weapon", weapon), ("grip", grip), ("shoulder", shoulder));
             SetRefs(root.GetComponent<SoldierRagdoll>(), ("animator", animator), ("weapon", rifle));
             SetRefs(root.GetComponent<SoldierAnimator>(), ("animator", animator));
             SetRefs(root.GetComponent<SoldierTraversal>(), ("animator", animator));

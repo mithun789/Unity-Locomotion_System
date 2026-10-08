@@ -80,11 +80,12 @@ namespace WarMission.EditorTools
             "TurnInPlace", "CrouchTurn90"
         };
 
-        // Body yaw of each turn clip's first frame (measured). The offset cancels it, so the first frame
-        // faces the soldier's forward like the idle it starts from.
+        // Root yaw of each turn clip's first frame (measured), minus the body yaw we want relative to the soldier.
+        // The offset cancels it, so the turn starts and ends with the hips where the idles have them.
+        // Left: the clip stands bladed 51 degrees (Rifle_Idle_Ready stance); turned square like the relaxed idles.
         static readonly Dictionary<string, float> TurnStartYaw = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
         {
-            { "Rifle_TurnInPlace_Left", 54f },
+            { "Rifle_TurnInPlace_Left", 54f - 51f },
             { "Rifle_TurnInPlace_Right", -4f },
             { "Rifle_CrouchTurn90_Left", 33f },
             { "Rifle_CrouchTurn90_Right", 33f },

@@ -18,6 +18,7 @@ namespace WarMission
         [SerializeField] SoldierWeapon weapon;
         [Tooltip("Places the rifle between the hands before the spine is aimed.")]
         [SerializeField] WeaponGrip grip;
+        [SerializeField] WeaponShoulder shoulder;
 
         [Header("Spine share of the correction (last bone finishes it)")]
         [SerializeField] float spineWeight = 0.3f;
@@ -70,6 +71,7 @@ namespace WarMission
             if (animator == null) animator = GetComponentInChildren<Animator>();
             if (weapon == null) weapon = GetComponent<SoldierWeapon>();
             if (grip == null) grip = GetComponent<WeaponGrip>();
+            if (shoulder == null) shoulder = GetComponent<WeaponShoulder>();
 
             var candidates = new[]
             {
@@ -162,7 +164,14 @@ namespace WarMission
                 }
             }
 
-            if (recoil > 0f)
+            // Shouldered rifle while aiming (not in the mirrored cover pose, rifle in the left hand there).
+            float shoulderWeight = shoulder != null && shoulder.enabled && grip != null
+                ? aimWeight * (1f - grip.LeftHandWeight) : 0f;
+            if (shoulderWeight > 0.001f)
+            {
+                shoulder.Solve(target, shoulderWeight, recoil);
+            }
+            else if (recoil > 0f)
             {
                 Transform top = bones[bones.Length - 1];
                 top.rotation = Quaternion.AngleAxis(-recoil, transform.right) * top.rotation;

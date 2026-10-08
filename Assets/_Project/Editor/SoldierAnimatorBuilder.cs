@@ -350,7 +350,10 @@ namespace WarMission.EditorTools
         static BlendTree CreateIdleTree(AnimatorController controller)
         {
             BlendTree relaxed = Create1DTree(controller, "RelaxedIdle", "IdleVariant");
-            string[] relaxedClips = { "Rifle_Idle_Relaxed", "Rifle_Idle_GunDown", "Rifle_Idle_Ready" };
+            // Only idles whose body stays square to the facing. Rifle_Idle_Ready is bladed 55 degrees and
+            // Rifle_Idle_Relaxed turns the whole body -46..+42 degrees (looking around); both made the standing
+            // soldier writhe in place.
+            string[] relaxedClips = { "Rifle_Idle_GunDown" };
             if (relaxedClips.Length != SoldierAnimator.RelaxedIdleCount)
                 throw new System.InvalidOperationException("Update SoldierAnimator.RelaxedIdleCount");
             for (int i = 0; i < relaxedClips.Length; i++) relaxed.AddChild(Clip(relaxedClips[i]), i);
