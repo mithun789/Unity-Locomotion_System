@@ -1,0 +1,46 @@
+{
+ "materials": [
+  {
+   "name": "Default_OBJ_Pbr",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Default_OBJ_Pbr_base.png",
+   "mrMap": "",
+   "normalMap": "",
+   "aoInRed": false
+  },
+  {
+   "name": "Default_OBJ_001_Pbr",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Default_OBJ_001_Pbr_base.png",
+   "mrMap": "",
+   "normalMap": "",
+   "aoInRed": false
+  },
+  {
+   "name": "Default_OBJ_002_Pbr",
+   "baseColor": [
+    0.800000011920929,
+    0.800000011920929,
+    0.800000011920929,
+    1.0
+   ],
+   "metallicScale": 1.0,
+   "baseMap": "Default_OBJ_002_Pbr_base.png",
+   "mrMap": "Default_OBJ_002_Pbr_mr.png",
+   "normalMap": "",
+   "aoInRed": false
+  }
+ ]
+}

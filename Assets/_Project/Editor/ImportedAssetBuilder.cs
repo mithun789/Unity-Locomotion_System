@@ -16,6 +16,8 @@ namespace WarMission.EditorTools
     {
         public const string PolishFolder = "Assets/_Project/Characters/Polish";
         public const string PolishModel = PolishFolder + "/Polish_Soldier.fbx";
+        public const string GhostFolder = "Assets/_Project/Characters/Ghost";
+        public const string GhostModel = GhostFolder + "/Ghost_Soldier.fbx";
         public const string M4Folder = "Assets/_Project/Weapons/M4";
         public const string M4Model = M4Folder + "/M4.fbx";
 
@@ -40,13 +42,15 @@ namespace WarMission.EditorTools
         [MenuItem("War Mission/Build Imported Assets")]
         public static void Build()
         {
-            BuildModel(PolishFolder, PolishModel, humanoid: true);
+            BuildModel(PolishFolder, PolishModel, humanoid: true, fixPolishSpine: true);
+            // Ghost: rigged with AccuRig (CC_Base bones); Unity's auto-map is complete.
+            BuildModel(GhostFolder, GhostModel, humanoid: true);
             BuildModel(M4Folder, M4Model, humanoid: false);
             AssetDatabase.SaveAssets();
             Debug.Log("[ImportedAssetBuilder] Materials and rigs built.");
         }
 
-        static void BuildModel(string folder, string modelPath, bool humanoid)
+        static void BuildModel(string folder, string modelPath, bool humanoid, bool fixPolishSpine = false)
         {
             string json = File.ReadAllText(Path.Combine(folder, "materials.json"));
             MaterialList list = JsonUtility.FromJson<MaterialList>(json);
@@ -75,7 +79,7 @@ namespace WarMission.EditorTools
                 importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), entry.name), material);
             }
             importer.SaveAndReimport();
-            if (humanoid) FixHumanMapping(importer);
+            if (fixPolishSpine) FixHumanMapping(importer);
         }
 
         /// <summary>

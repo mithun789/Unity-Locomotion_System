@@ -65,11 +65,12 @@ namespace WarMission.EditorTools
             BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
             BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
 
-            // Imported bodies (Blender exports, see ImportedAssetBuilder). The enemy keeps the mannequin until
-            // the Ghost model is rigged.
-            RiflePose polishPose = MeasureRiflePose(ImportedAssetBuilder.PolishModel);
-            ApplyBody(PlayerPath, ImportedAssetBuilder.PolishModel, polishPose);
-            ApplyBody(AllyPath, ImportedAssetBuilder.PolishModel, polishPose);
+            // Imported bodies (see ImportedAssetBuilder): Ghost (the hero) for the player and allies,
+            // Polish soldier for enemies.
+            RiflePose ghostPose = MeasureRiflePose(ImportedAssetBuilder.GhostModel);
+            ApplyBody(PlayerPath, ImportedAssetBuilder.GhostModel, ghostPose);
+            ApplyBody(AllyPath, ImportedAssetBuilder.GhostModel, ghostPose);
+            ApplyBody(EnemyPath, ImportedAssetBuilder.PolishModel, MeasureRiflePose(ImportedAssetBuilder.PolishModel));
         }
 
         /// <summary>Name of the mannequin model child in Soldier.prefab.</summary>

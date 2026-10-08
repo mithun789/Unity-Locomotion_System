@@ -89,7 +89,7 @@ Standing turns take the arms from the idles (RelaxedArms layer is a 1D blend on 
 with the rifle across the chest; a Mixamo "Rifle Turn Right" would be better. AI fires when the muzzle is on target.
 
 **Real models (2026-10-08):** source files in `D:\Unity-Projects\soldires` (Blender work, exports in `export/`).
-- Polish soldier = player + allies. Its GLB rig was renamed to mixamorig names in Blender (hips pivot moved onto the
+- Polish soldier = enemies (swapped 2026-10-08: Ghost is the hero). Its GLB rig was renamed to mixamorig names in Blender (hips pivot moved onto the
   pelvis, Beryl rifle removed, rest A-pose) -> `Characters/Polish/Polish_Soldier.fbx`.
 - M4 (kit's assembled carbine + flash hider) -> `Weapons/M4/M4.fbx` with empties RightPalm / LeftPalm / Muzzle.
   The FBX root holds the axis conversion; the builder works in the asset's space (bore = +Z).
@@ -97,9 +97,10 @@ with the rifle across the chest; a Mixamo "Rifle Turn Right" would be better. AI
   `materials.json` (glTF metallic-roughness / ORM -> generated `_mask.png`), FBX material remaps, Humanoid avatar with
   an explicit Spine/Chest mapping (auto-map skipped Spine and took helmet/mask for eyes/jaw).
 - **Build Soldier Prefab** now puts the M4 on every soldier and `ApplyBody` adds the Polish body to Soldier_Player /
-  Soldier_Ally as child `Body` (base `Model` switched off) so scene references survive.
-- Ghost = enemy: no skeleton. `soldires/export/Ghost_ForMixamo.fbx` goes through the Mixamo auto-rigger (user
-  uploads, downloads FBX With Skin, T-pose); then add it like the Polish body (`ApplyBody(EnemyPath, ...)`).
+  Soldier_Ally (Ghost) and Soldier_Enemy (Polish) as child `Body` (base `Model` switched off) so scene references survive.
+- Ghost = player + allies. Mixamo's auto-rigger refused it; the user rigged it with AccuRig (CC_Base bones) ->
+  `Characters/Ghost/Ghost_Soldier.fbx`; Unity auto-maps it fully. Do NOT import that FBX into Blender (its importer
+  lays the mesh flat); textures come from the original GLB (`Characters/Ghost/materials.json`).
 - Left hand fingers stay open on the handguard (clip pose); a finger curl would help.
 - Unity crashed once in `UpdateAsyncShaderVariants` while importing ~60 large textures; reopening fixed it.
 
