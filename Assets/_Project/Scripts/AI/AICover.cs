@@ -51,6 +51,7 @@ namespace WarMission
         readonly RaycastHit[] hits = new RaycastHit[16];
         AIPathFollower path;
         Health health;
+        TeamMember team;
         Phase phase;
         float phaseEnd;
         float peekStart;
@@ -71,6 +72,7 @@ namespace WarMission
         {
             path = GetComponent<AIPathFollower>();
             health = GetComponent<Health>();
+            team = GetComponent<TeamMember>();
         }
 
         void OnEnable()
@@ -122,6 +124,8 @@ namespace WarMission
                         if (cp == Current) cost -= 2f;
                         break;
                 }
+                // Avoid spots where team mates just died, and live grenades.
+                if (team != null) cost += DangerZones.Penalty(team.Team, cp.Position);
                 if (cost < bestCost)
                 {
                     bestCost = cost;

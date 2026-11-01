@@ -11,6 +11,7 @@ namespace WarMission
         [SerializeField] SoldierWeapon weapon;
         [SerializeField] Health health;
         [SerializeField] Camera viewCamera;
+        [SerializeField] SoldierGrenades grenades;
 
         [Header("Crosshair")]
         [SerializeField] Color crosshairColor = new Color(1f, 1f, 1f, 0.85f);
@@ -30,6 +31,11 @@ namespace WarMission
             if (weapon == null) weapon = GetComponent<SoldierWeapon>();
             if (health == null) health = GetComponent<Health>();
             if (viewCamera == null) viewCamera = Camera.main;
+        }
+
+        void Start()
+        {
+            if (grenades == null) grenades = GetComponent<SoldierGrenades>();
         }
 
         void OnEnable()
@@ -81,6 +87,8 @@ namespace WarMission
 
             string ammo = weapon.IsReloading ? "RELOADING" : $"{weapon.Ammo} / {weapon.MagazineSize}";
             GUI.Label(new Rect(Screen.width - 220f, Screen.height - 50f, 200f, 40f), ammo, labelStyle);
+            if (grenades != null)
+                GUI.Label(new Rect(Screen.width - 220f, Screen.height - 86f, 200f, 40f), $"G  {grenades.Count}", labelStyle);
             if (health != null)
                 GUI.Label(new Rect(20f, Screen.height - 50f, 240f, 40f), alive ? $"HP {Mathf.CeilToInt(health.Current)}" : "DEAD", labelStyle);
         }

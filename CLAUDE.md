@@ -334,6 +334,32 @@ Still missing from Mixamo: rifle crouch idle (a generated kneel is used), straig
   - `AIDebugLabel` (F3): state, intent, top 3 scores, traits, HP, ammo, suppression, morale above each AI.
   - The brain adds AIPersonality / AIDecisionMaker / AIDebugLabel at runtime if the prefab lacks them; Build
     Soldier Prefab now adds them to Soldier_Ally and Soldier_Enemy.
+- AI features pass 2 (user request 2026-11-01: "improve further, add more features"), NOT compiled in Unity yet
+  (mcs + API stubs only), waiting for playtest:
+  - Grenades for every soldier: `SoldierGrenades` (2 each, G / gamepad North for the player, HUD "G n"),
+    `SoldierCommand.Grenade` + `GrenadeTarget`. Release after 0.55 s on a 35 deg ballistic arc (steeper when
+    needed), max 28 m. `Grenade` (runtime primitive, no prefab): 3 s fuse, 6 m radius, 160 dmg falling to 10%,
+    blocked by scenery, ragdoll force, orange blast ball, static `Live` list and `AnyExploded` event.
+    Soldier blocks fire/reload while throwing; SoldierAim drops the aim pose (as when reloading).
+    Animator: trigger `Throw`, UpperBody state `Throw` (Rifle_Grenade_Throw). Re-run Build Soldier Animator.
+  - AI grenades: intent `Grenade` (score up when the enemy hides or crouches, bunches up, or the fight stalls
+    behind cover; never within 7 m of a team mate, 8-28 m, 12 s cooldown). State `ThrowGrenade` (face, throw),
+    or from cover on the next peek.
+  - Grenade dodge: `AIPerception.DangerGrenade` (live grenade within radius + 1.5 m, any team) -> state `Evade`
+    (runs to a hidden spot away from it, shouts "Grenade!"), before any other logic.
+  - Gradual spotting: awareness 0..1 per enemy. Rate 2.5/s close, x0.25 at 40 m, x0.45 peripheral (> 25 deg),
+    x0.55 crouched, x1.5 sprinting, x4 if it fired in the last 2 s, x5 while already fighting. Target only at 1.
+    Suspicion (>= 0.3): patrol stops and looks ("Huh?"), investigate walks slowly toward it.
+  - Footsteps: walking enemies heard within 6 m, sprinting 14 m, crouched silent (sets suspicion and LastHeard).
+    Explosions heard within 60 m; a blast within 10 m counts as under fire and suppresses.
+  - Target choice: threat score = distance x attacker 0.5, aiming at me 0.75, wounded 0.8, x1.25 per other AI
+    already on that target (`TeamMember.TargetedBy`), keep current 0.85.
+  - `DangerZones`: team death spots (30 s, 4 m) and live grenades raise cover costs in `AICover`.
+  - `AICallouts` (F4 toggles): "Contact!", "Reloading!", "Flanking!", "Moving up!", "Falling back!",
+    "Covering fire!", "Frag out!", "Grenade!", "Man down!" (closest mate), "Target down!", "Lost him...",
+    "Taking cover!", "Huh?". 6 s repeat cooldown. `SpokeLine` event is the hook for voice clips.
+  - Debug label (F3) now also shows grenade, suspicion. Build Soldier Prefab adds SoldierGrenades (base) and
+    AICallouts (AI variants); runtime fallbacks add them on older prefabs.
 - Milestone 5: built, waiting for user playtest.
   - `CoverPoint` (+ static registry): Low (crouch behind, stand to shoot over) or High (corner, step out
     `PeekSide` 0.9 m to shoot). Forward faces the cover; `Protects(threat)` within 65°. One occupant.

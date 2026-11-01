@@ -14,6 +14,7 @@ namespace WarMission
         SoldierAim aim;
         SoldierAnimator soldierAnimator;
         SoldierTraversal traversal;
+        SoldierGrenades grenades;
         ISoldierInput input;
 
         public SoldierCommand Command { get; private set; }
@@ -25,6 +26,8 @@ namespace WarMission
             aim = GetComponent<SoldierAim>();
             soldierAnimator = GetComponent<SoldierAnimator>();
             traversal = GetComponent<SoldierTraversal>();
+            // Older prefabs: every soldier carries grenades.
+            if (!TryGetComponent(out grenades)) grenades = gameObject.AddComponent<SoldierGrenades>();
             input = GetComponent<ISoldierInput>();
             Command = SoldierCommand.Idle(transform);
         }
@@ -55,6 +58,14 @@ namespace WarMission
             }
 
             motor.Tick(command, dt);
+
+            // No rifle work while the hand is busy with a grenade.
+            if (grenades != null) grenades.Tick(command, dt);
+            if (grenades != null && grenades.IsThrowing)
+            {
+                command.Fire = false;
+                command.Reload = false;
+            }
 
             // Hold the trigger until the rifle is raised from a relaxed idle.
             if (aim != null && !aim.IsReady) command.Fire = false;

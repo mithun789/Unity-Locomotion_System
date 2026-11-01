@@ -50,6 +50,7 @@ namespace WarMission
         readonly RaycastHit[] obstructionHits = new RaycastHit[8];
         Soldier soldier;
         SoldierMotor motor;
+        SoldierGrenades grenades;
         SoldierTraversal traversal;
         Transform[] bones;
         float[] weights;
@@ -138,7 +139,10 @@ namespace WarMission
             IsObstructed = (command.Aim || command.Fire) && Obstructed(command.AimPoint);
             bool ready = !motor.IsSprinting && !IsObstructed && (command.Aim || command.Fire);
             ReadyWeight = Mathf.MoveTowards(ReadyWeight, ready ? 1f : 0f, (ready ? raiseSpeed : lowerSpeed) * dt);
-            reloadWeight = Mathf.MoveTowards(reloadWeight, weapon != null && weapon.IsReloading ? 0f : 1f, blendSpeed * dt);
+            if (grenades == null) TryGetComponent(out grenades);
+            // Reloading or throwing a grenade: the hands leave the aim pose (fixed rifle hold, no spine aim).
+            bool handsBusy = (weapon != null && weapon.IsReloading) || (grenades != null && grenades.IsThrowing);
+            reloadWeight = Mathf.MoveTowards(reloadWeight, handsBusy ? 0f : 1f, blendSpeed * dt);
             float aimWeight = ReadyWeight * reloadWeight;
 
             if (grip != null) grip.Solve(reloadWeight);
