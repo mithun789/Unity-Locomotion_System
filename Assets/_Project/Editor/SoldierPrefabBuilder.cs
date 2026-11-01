@@ -63,8 +63,8 @@ namespace WarMission.EditorTools
             Material allyBody = LoadOrCreateMaterial("Team_Ally", "HDRP/Lit", new Color(0.25f, 0.42f, 0.75f), 0f);
             Material enemyBody = LoadOrCreateMaterial("Team_Enemy", "HDRP/Lit", new Color(0.72f, 0.26f, 0.2f), 0f);
             BuildVariant(PlayerPath, Team.Ally, allyBody, typeof(PlayerCover), typeof(PlayerSoldierInput), typeof(PlayerHud), typeof(PlayerRestart));
-            BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
-            BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AISoldierBrain));
+            BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel));
+            BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel));
 
             // Imported bodies (see ImportedAssetBuilder): Ghost (the hero) for the player and allies,
             // Polish soldier for enemies.

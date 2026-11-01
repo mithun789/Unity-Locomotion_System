@@ -2,6 +2,17 @@ using UnityEngine;
 
 namespace WarMission
 {
+    /// <summary>Which cover to look for.</summary>
+    public enum CoverSearch
+    {
+        /// <summary>Closest cover that blocks the threat.</summary>
+        Nearest,
+        /// <summary>Cover closer to the threat (bounding forward).</summary>
+        Advance,
+        /// <summary>Cover farther from the threat (falling back).</summary>
+        Fallback,
+    }
+
     /// <summary>
     /// Cover behaviour for AI: picks the best free CoverPoint that blocks the threat, runs to it, then cycles
     /// hide (back against the cover: crouched behind low cover, standing at a high corner) and peek
@@ -34,6 +45,8 @@ namespace WarMission
         [SerializeField] float stepOut = 0.9f;
         [Tooltip("Run to cover farther than this, in metres.")]
         [SerializeField] float sprintDistance = 3f;
+        [Tooltip("Advance / fall back cover must gain at least this much distance on the threat, in metres.")]
+        [SerializeField] float minDistanceGain = 3f;
 
         readonly RaycastHit[] hits = new RaycastHit[16];
         AIPathFollower path;
@@ -45,6 +58,14 @@ namespace WarMission
         public CoverPoint Current { get; private set; }
         public bool HasCover => Current != null;
         public bool IsInPosition => phase == Phase.Hiding || phase == Phase.Peeking;
+        public bool IsMoving => phase == Phase.Moving;
+        public bool IsPeeking => phase == Phase.Peeking;
+        /// <summary>The search mode the current cover was picked with.</summary>
+        public CoverSearch CurrentMode { get; private set; }
+        /// <summary>Hide time multiplier, set by the brain (suppressed soldiers stay down longer).</summary>
+        public float HideScale { get; set; } = 1f;
+        /// <summary>Peek time multiplier, set by the brain.</summary>
+        public float PeekScale { get; set; } = 1f;
 
         void Awake()
         {
@@ -66,7 +87,7 @@ namespace WarMission
         void OnDied(DamageInfo damage) => Leave();
 
         /// <summary>Finds and claims the best cover against the threat. False when none is suitable.</summary>
-        public bool TryTakeCover(Vector3 threat)
+        public bool TryTakeCover(Vector3 threat, CoverSearch mode = CoverSearch.Nearest)
         {
             CoverPoint best = null;
             float bestCost = float.MaxValue;
@@ -83,9 +104,24 @@ namespace WarMission
                 float threatDistance = FlatDistance(cp.Position, threat);
                 if (threatDistance < minThreatDistance || !BlocksThreat(cp, threat)) continue;
 
-                // Prefer close cover; avoid running toward the threat to reach it.
-                float cost = distance + Mathf.Max(0f, myThreatDistance - threatDistance) * 0.5f;
-                if (cp == Current) cost -= 2f;
+                float cost;
+                switch (mode)
+                {
+                    case CoverSearch.Advance:
+                        // Must gain ground; prefer the biggest gain that is not a long run.
+                        if (threatDistance > myThreatDistance - minDistanceGain) continue;
+                        cost = distance * 0.6f + threatDistance * 0.4f;
+                        break;
+                    case CoverSearch.Fallback:
+                        if (threatDistance < myThreatDistance + minDistanceGain) continue;
+                        cost = distance - (threatDistance - myThreatDistance) * 0.3f;
+                        break;
+                    default:
+                        // Prefer close cover; avoid running toward the threat to reach it.
+                        cost = distance + Mathf.Max(0f, myThreatDistance - threatDistance) * 0.5f;
+                        if (cp == Current) cost -= 2f;
+                        break;
+                }
                 if (cost < bestCost)
                 {
                     bestCost = cost;
@@ -93,6 +129,7 @@ namespace WarMission
                 }
             }
             if (best == null) return false;
+            CurrentMode = mode;
             if (best == Current) return true;
 
             Leave();
@@ -101,6 +138,12 @@ namespace WarMission
             phase = Phase.Moving;
             path.SetDestination(best.Position);
             return true;
+        }
+
+        /// <summary>Cut the current peek short and duck back down.</summary>
+        public void Duck()
+        {
+            if (phase == Phase.Peeking) StartHiding();
         }
 
         public void Leave()
@@ -145,7 +188,7 @@ namespace WarMission
                     {
                         phase = Phase.Peeking;
                         peekStart = Time.time;
-                        phaseEnd = Time.time + Random.Range(peekTime.x, peekTime.y);
+                        phaseEnd = Time.time + Random.Range(peekTime.x, peekTime.y) * PeekScale;
                     }
                     return InCoverPose(look);
 
@@ -170,7 +213,7 @@ namespace WarMission
         void StartHiding()
         {
             phase = Phase.Hiding;
-            phaseEnd = Time.time + Random.Range(hideTime.x, hideTime.y);
+            phaseEnd = Time.time + Random.Range(hideTime.x, hideTime.y) * HideScale;
         }
 
         SoldierCommand Hold(Vector3 look, bool crouch) => new SoldierCommand { AimPoint = look, Crouch = crouch };

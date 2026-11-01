@@ -311,6 +311,29 @@ Still missing from Mixamo: rifle crouch idle (a generated kneel is used), straig
     blocked by a 0.65 m box, mantle onto it, auto hop-down off it, Space rail-drop off 1.68 m; squad battle OK.
   - The user plays while tests run; check `Soldier.Command` for foreign input before trusting key tests.
 - Milestone 4: DONE implicitly (user moved on after the battle; "progress good").
+- AI decision layer (user request 2026-11-01: "enemy can think and make decisions"), built, NOT compiled in
+  Unity yet (cloud session, checked with mcs against API stubs only), waiting for playtest:
+  - `AIPersonality`: per-soldier traits rolled in Awake (aggression, caution, discipline, teamwork; label
+    Assault / Careful / Marksman / Rifleman). Discipline: faster reaction, tighter aim, shorter bursts.
+  - `AIDecisionMaker` (utility AI): every ~0.3 s scores Engage, TakeCover, Advance, Flank, Suppress, Retreat,
+    Search from an `AIContext` (health, ammo, target in sight, distance, time since seen, suppression, under fire,
+    visible enemies vs nearby allies, squad morale, in cover, cooldowns) times the traits. Commitment bonus 0.12,
+    min commit 1.2 s (skipped when health < 0.35 or suppression > 0.7), +/-0.05 noise.
+  - `AISoldierBrain`: calm states unchanged (Patrol, Investigate on gunshot / squad report). Fight mode while an
+    enemy was seen or shot at this soldier within `combatMemory` (10 s). New states Flank, Suppress, Retreat.
+    Engage strafes (NavMesh.Raycast flips at edges) and careful soldiers kneel past 15 m. Suppress fires at the
+    predicted last known position (also from cover peeks). Leaving the fight searches the last sighting once.
+  - `AICover.TryTakeCover(threat, CoverSearch)`: Nearest / Advance (gain >= 3 m on the threat) / Fallback.
+    `HideScale` / `PeekScale` set by the brain (suppressed soldiers stay down longer), `Duck()` cuts a peek.
+  - `AIPerception`: `Suppression` 0..1 (near miss +0.2, hit +0.35, decays 0.3/s), `VisibleEnemyCount`,
+    `LastSeenVelocity` + `PredictedTargetPosition`. Suppression also widens AI aim error.
+  - `AITactics` (static): flank spots 75-125 deg around the enemy with line of sight and a NavMesh path <= 35 m;
+    retreat spots away from the threat, preferring hidden ones.
+  - `Squad`: member list, one flanker at a time (token), reload callouts (`SoldierWeapon.ReloadStarted`) and the
+    flanker make mates score Suppress higher, morale (-1/size per death, +0.15 per kill, recovers to 0.8).
+  - `AIDebugLabel` (F3): state, intent, top 3 scores, traits, HP, ammo, suppression, morale above each AI.
+  - The brain adds AIPersonality / AIDecisionMaker / AIDebugLabel at runtime if the prefab lacks them; Build
+    Soldier Prefab now adds them to Soldier_Ally and Soldier_Enemy.
 - Milestone 5: built, waiting for user playtest.
   - `CoverPoint` (+ static registry): Low (crouch behind, stand to shoot over) or High (corner, step out
     `PeekSide` 0.9 m to shoot). Forward faces the cover; `Protects(threat)` within 65°. One occupant.

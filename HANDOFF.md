@@ -51,6 +51,12 @@ Last updated: 2026-09-23.
 
 ## In progress right now
 
+**AI decision layer (2026-11-01, cloud session, NOT compiled in Unity yet):** utility AI on top of the brain.
+`AIPersonality`, `AIDecisionMaker`, `AITactics`, `AIDebugLabel` (F3) are new; `AISoldierBrain`, `AICover`,
+`AIPerception`, `Squad` changed. Details in CLAUDE.md progress log. First steps next time: open Unity, read the
+console, fix compile errors, run War Mission > Build Soldier Prefab, play SquadBattle with F3 on, tune the
+scores in `AIDecisionMaker.Score` (M5 rule: AI under fire in the open must still go to cover).
+
 **Cover polish after the user's screenshots** (code done and compiled, **not yet play-tested**):
 - Low cover = kneel facing the cover with the rifle (crouch states), not back-to-wall. Animator only keeps `CoverHigh` (back-to-wall, `InCover` bool); `CoverLow` param is always false.
 - RelaxedArms off while crouched (fixed rifle behind the back).
