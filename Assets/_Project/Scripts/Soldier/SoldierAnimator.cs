@@ -17,6 +17,7 @@ namespace WarMission
         static readonly int FireId = Animator.StringToHash("Fire");
         static readonly int ReloadId = Animator.StringToHash("Reload");
         static readonly int HitId = Animator.StringToHash("Hit");
+        static readonly int ThrowId = Animator.StringToHash("Throw");
         static readonly int AimBlendId = Animator.StringToHash("AimBlend");
         static readonly int IdleVariantId = Animator.StringToHash("IdleVariant");
         static readonly int InCoverId = Animator.StringToHash("InCover");
@@ -71,6 +72,7 @@ namespace WarMission
         SoldierWeapon weapon;
         SoldierAim aim;
         Health health;
+        SoldierGrenades grenades;
         int idleVariant;
         float nextIdleSwitch;
         int relaxedArmsLayer;
@@ -108,6 +110,18 @@ namespace WarMission
             if (health != null) health.Damaged += OnDamaged;
         }
 
+        // Start, not Awake: Soldier adds SoldierGrenades in its own Awake on older prefabs.
+        void Start()
+        {
+            grenades = GetComponent<SoldierGrenades>();
+            if (grenades != null) grenades.ThrowStarted += OnThrowStarted;
+        }
+
+        void OnDestroy()
+        {
+            if (grenades != null) grenades.ThrowStarted -= OnThrowStarted;
+        }
+
         void OnDisable()
         {
             if (weapon != null)
@@ -120,6 +134,19 @@ namespace WarMission
 
         void OnFired() => animator.SetTrigger(FireId);
         void OnReloadStarted() => animator.SetTrigger(ReloadId);
+
+        /// <summary>Throw state on the UpperBody layer (Build Soldier Animator adds it; older controllers skip it).</summary>
+        void OnThrowStarted()
+        {
+            if (HasParameter(ThrowId)) animator.SetTrigger(ThrowId);
+        }
+
+        bool HasParameter(int id)
+        {
+            foreach (AnimatorControllerParameter p in animator.parameters)
+                if (p.nameHash == id) return true;
+            return false;
+        }
 
         void OnDamaged(DamageInfo damage)
         {

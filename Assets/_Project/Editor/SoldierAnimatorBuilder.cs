@@ -30,6 +30,7 @@ namespace WarMission.EditorTools
             controller.AddParameter("Fire", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Reload", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Hit", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Throw", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Jump", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("AimBlend", AnimatorControllerParameterType.Float);
             controller.AddParameter("IdleVariant", AnimatorControllerParameterType.Float);
@@ -157,6 +158,14 @@ namespace WarMission.EditorTools
             AddAnyStateTransition(sm, fire, "Fire", 0.03f, canTransitionToSelf: true);
             AddAnyStateTransition(sm, reload, "Reload", 0.15f, canTransitionToSelf: false);
             AddAnyStateTransition(sm, hit, "Hit", 0.05f, canTransitionToSelf: true);
+
+            // Grenade throw (SoldierGrenades.ThrowStarted). The clip is played at the throw duration.
+            AnimationClip throwClip = Clip("Rifle_Grenade_Throw");
+            AnimatorState throwState = sm.AddState("Throw", new Vector3(560f, 200f));
+            throwState.motion = throwClip;
+            if (throwClip != null) throwState.speed = Mathf.Max(1f, throwClip.length / 1.1f);
+            AddAnyStateTransition(sm, throwState, "Throw", 0.1f, canTransitionToSelf: false);
+            AddExit(throwState, empty, 0.9f, 0.15f);
 
             AddExit(fire, empty, 0.8f, 0.1f);
             AddExit(reload, empty, 0.92f, 0.15f);

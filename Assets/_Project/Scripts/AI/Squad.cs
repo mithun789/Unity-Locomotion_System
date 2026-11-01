@@ -89,6 +89,22 @@ namespace WarMission
             morale = Mathf.Max(0f, morale - lossPerDeath / Mathf.Max(1, startSize));
             lastDeathTime = Time.time;
             ReleaseFlank(member);
+
+            // The closest living mate shouts it.
+            AISoldierBrain closest = null;
+            float best = float.MaxValue;
+            for (int i = 0; i < members.Count; i++)
+            {
+                AISoldierBrain other = members[i];
+                if (other == null || other == member || !other.IsAlive) continue;
+                float d = (other.transform.position - member.transform.position).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    closest = other;
+                }
+            }
+            if (closest != null) closest.Say(Callout.ManDown, urgent: true);
         }
 
         public void OnEnemyKilled() => morale = Mathf.Min(1f, morale + gainPerKill);

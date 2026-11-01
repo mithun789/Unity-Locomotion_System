@@ -27,6 +27,10 @@ namespace WarMission
             Flank,
             Suppress,
             Retreat,
+            /// <summary>Running from a live grenade.</summary>
+            Evade,
+            /// <summary>Standing to throw a grenade.</summary>
+            ThrowGrenade,
             Dead,
         }
 
@@ -80,6 +84,15 @@ namespace WarMission
         [Tooltip("Scenery that blocks sight for flank and retreat spot checks.")]
         [SerializeField] LayerMask tacticsMask = ~0;
 
+        [Header("Grenades")]
+        [Tooltip("Seconds between grenades from this soldier.")]
+        [SerializeField] float grenadeCooldown = 12f;
+        [SerializeField] float minGrenadeDistance = 8f;
+        [Tooltip("No grenade when a team mate is this close to the target, in metres.")]
+        [SerializeField] float grenadeFriendlyRadius = 7f;
+        [Tooltip("Run this far (path length, metres) at most to get away from a live grenade.")]
+        [SerializeField] float maxEvadePath = 14f;
+
         [Header("Friendly fire")]
         [SerializeField] LayerMask lineOfFireMask = ~0;
 
@@ -93,6 +106,8 @@ namespace WarMission
         AICover cover;
         AIPersonality personality;
         AIDecisionMaker decision;
+        AICallouts callouts;
+        SoldierGrenades grenades;
 
         int patrolIndex;
         float waitUntil;
@@ -124,6 +139,12 @@ namespace WarMission
         int strafeDir;
         float nextStrafeChange;
         bool engageKneel;
+        float lastGrenadeTime = float.NegativeInfinity;
+        Vector3 grenadeTarget;
+        bool grenadeIssued;
+        float grenadeIssueTime;
+        bool pendingCoverGrenade;
+        float grenadeDeadline;
 
         public State CurrentState { get; private set; } = State.Patrol;
         public bool InCombat { get; private set; }
@@ -148,6 +169,7 @@ namespace WarMission
             personality = GetOrAdd<AIPersonality>();
             decision = GetOrAdd<AIDecisionMaker>();
             GetOrAdd<AIDebugLabel>();
+            callouts = GetOrAdd<AICallouts>();
             noiseSeed = Random.value * 100f;
             burstLeft = Random.Range(burstShots.x, burstShots.y + 1);
         }
@@ -190,16 +212,28 @@ namespace WarMission
         void OnReloadStarted()
         {
             if (squad != null) squad.CallReloading(this);
+            if (InCombat) Say(Callout.Reloading);
         }
+
+        /// <summary>Shout a callout (shown above the head).</summary>
+        public void Say(Callout line, bool urgent = false)
+        {
+            if (callouts != null) callouts.Say(line, urgent);
+        }
+
+        /// <summary>Has at least one grenade left (for the debug label).</summary>
+        public bool HasGrenades => grenades != null && grenades.Count > 0;
 
         void OnHitTarget(Health target, bool killed)
         {
-            if (killed && squad != null && target != null && target.TryGetComponent(out TeamMember member) && self.IsEnemyOf(member))
-                squad.OnEnemyKilled();
+            if (!killed || target == null || !target.TryGetComponent(out TeamMember member) || !self.IsEnemyOf(member)) return;
+            if (squad != null) squad.OnEnemyKilled();
+            Say(Callout.TargetDown);
         }
 
         void OnDied(DamageInfo damage)
         {
+            DangerZones.AddDeath(self.Team, transform.position);
             SetState(State.Dead);
             if (squad != null) squad.OnMemberDied(this);
         }
@@ -214,6 +248,8 @@ namespace WarMission
                 case State.Flank: return Flank();
                 case State.Suppress: return Suppress();
                 case State.Retreat: return Retreat();
+                case State.Evade: return Evade();
+                case State.ThrowGrenade: return ThrowGrenade();
                 case State.Investigate: return Investigate();
                 case State.Patrol: return Patrol();
                 default: return SoldierCommand.Idle(transform);
@@ -230,8 +266,10 @@ namespace WarMission
                 return;
             }
 
+            if (grenades == null) TryGetComponent(out grenades);
             if (perception.Target != null && squad != null) squad.Report(perception.Target.transform.position);
             TrackReaction();
+            if (UpdateEvade()) return;
 
             bool squadContact = InCombat && squad != null && Time.time - squad.LastReportTime < 3f;
             bool contact = perception.Target != null || Time.time - perception.LastContactTime < combatMemory || squadContact;
@@ -283,6 +321,7 @@ namespace WarMission
             combatStart = Time.time;
             decision.BeginFight(AIIntent.Engage);
             if (CurrentState != State.TakeCover) SetState(State.Engage);
+            if (perception.Target != null) Say(Callout.Contact, urgent: true);
         }
 
         void LeaveCombat()
@@ -291,7 +330,11 @@ namespace WarMission
             handledHeardTime = perception.LastHeardTime;
             if (squad != null) handledSquadTime = squad.LastReportTime;
             if (CurrentState == State.Investigate) return;
-            if (KnownEnemyTime() > searchedSighting) StartSearch();
+            if (KnownEnemyTime() > searchedSighting)
+            {
+                StartSearch();
+                Say(Callout.LostHim);
+            }
             else
             {
                 SetState(State.Patrol);
@@ -336,6 +379,9 @@ namespace WarMission
                 CanSearch = knowsEnemy && knownTime > searchedSighting,
                 TeamNeedsCover = squad != null && squad.NeedsCoveringFire(this),
                 CombatTime = now - combatStart,
+                CanGrenade = CanThrowGrenadeAt(threat, out int enemiesNear),
+                TargetHidden = perception.Target == null || IsInCoverOrLow(perception.Target),
+                EnemiesNearTarget = enemiesNear,
             };
         }
 
@@ -355,6 +401,7 @@ namespace WarMission
                 case AIIntent.Retreat:
                     return CurrentState == State.Retreat || (CurrentState == State.TakeCover && cover.CurrentMode == CoverSearch.Fallback);
                 case AIIntent.Search: return CurrentState == State.Investigate;
+                case AIIntent.Grenade: return CurrentState == State.ThrowGrenade || pendingCoverGrenade;
             }
             return false;
         }
@@ -370,7 +417,11 @@ namespace WarMission
                     break;
 
                 case AIIntent.TakeCover:
-                    if (cover != null && cover.TryTakeCover(threat)) SetState(State.TakeCover);
+                    if (cover != null && cover.TryTakeCover(threat))
+                    {
+                        if (CurrentState != State.TakeCover && perception.IsUnderFire(underFireWindow)) Say(Callout.TakingCover);
+                        SetState(State.TakeCover);
+                    }
                     else Failed(ref coverFailTime);
                     break;
 
@@ -379,6 +430,7 @@ namespace WarMission
                     {
                         lastAdvanceTime = Time.time;
                         SetState(State.TakeCover);
+                        Say(Callout.MovingUp);
                     }
                     else Failed(ref advanceFailTime);
                     break;
@@ -388,11 +440,13 @@ namespace WarMission
                     {
                         lastRetreatTime = Time.time;
                         SetState(State.TakeCover);
+                        Say(Callout.FallingBack, urgent: true);
                     }
                     else if (AITactics.FindRetreatPosition(transform.position, threat, maxRetreatPath, tacticsMask, out Vector3 retreatSpot))
                     {
                         BeginMove(retreatSpot, 10f);
                         SetState(State.Retreat);
+                        Say(Callout.FallingBack, urgent: true);
                     }
                     else Failed(ref retreatFailTime);
                     break;
@@ -405,6 +459,7 @@ namespace WarMission
                     {
                         BeginMove(flankSpot, flankTimeout);
                         SetState(State.Flank);
+                        Say(Callout.Flanking);
                     }
                     else
                     {
@@ -417,6 +472,22 @@ namespace WarMission
                 case AIIntent.Suppress:
                     // In cover the peeks fire at the last known position; in the open, stand and fire.
                     if (!(CurrentState == State.TakeCover && cover.IsInPosition)) SetState(State.Suppress);
+                    if (squad != null && squad.NeedsCoveringFire(this)) Say(Callout.CoveringFire);
+                    break;
+
+                case AIIntent.Grenade:
+                    grenadeTarget = GrenadeAimPoint();
+                    grenadeIssued = false;
+                    if (CurrentState == State.TakeCover && cover.IsInPosition)
+                    {
+                        pendingCoverGrenade = true;   // thrown on the next peek
+                        grenadeDeadline = Time.time + 6f;
+                    }
+                    else
+                    {
+                        grenadeDeadline = Time.time + 2.5f;
+                        SetState(State.ThrowGrenade);
+                    }
                     break;
 
                 case AIIntent.Search:
@@ -497,6 +568,7 @@ namespace WarMission
                 if (squad != null) squad.ReleaseFlank(this);
             }
             if (previous == State.TakeCover && cover != null) cover.Leave();
+            if (previous == State.TakeCover) pendingCoverGrenade = false;
             if (next == State.Engage || next == State.Suppress || next == State.Dead) path.Stop();
             CurrentState = next;
         }
@@ -566,6 +638,13 @@ namespace WarMission
 
         SoldierCommand Patrol()
         {
+            // Half-noticed something: stop and look at it (raising the rifle) until it is spotted or fades.
+            if (perception.IsSuspicious)
+            {
+                Say(Callout.Suspicious);
+                return new SoldierCommand { AimPoint = perception.SuspiciousPosition + Vector3.up * 1.3f, Aim = true };
+            }
+
             if (route == null || route.Count == 0)
             {
                 path.Stop();
@@ -591,6 +670,17 @@ namespace WarMission
 
         SoldierCommand Investigate()
         {
+            if (!path.IsAtDestination && perception.IsSuspicious)
+            {
+                // Walk on carefully, rifle toward whatever was half seen.
+                Vector3 suspect = perception.SuspiciousPosition + Vector3.up * 1.3f;
+                return new SoldierCommand
+                {
+                    Move = SoldierCommand.WorldToMove(path.GetMoveDirection(), transform.position, suspect) * 0.6f,
+                    AimPoint = suspect,
+                    Aim = true,
+                };
+            }
             if (!path.IsAtDestination)
             {
                 bool run = path.RemainingDistance > runDistance;
@@ -617,6 +707,22 @@ namespace WarMission
         {
             SoldierCommand command = cover.Tick(ThreatPosition(), out bool canShoot);
             TeamMember target = perception.Target;
+            if (pendingCoverGrenade && Time.time > grenadeDeadline && !grenadeIssued)
+            {
+                pendingCoverGrenade = false;
+                lastGrenadeTime = Time.time;   // could not get the throw off; try again later
+                decision.ThinkNow();
+            }
+            if (pendingCoverGrenade && (canShoot || cover.Current.Height == CoverHeight.Low))
+            {
+                IssueGrenade(ref command);
+                if (grenadeIssued && grenades != null && !grenades.IsThrowing && Time.time - grenadeIssueTime > 0.3f)
+                {
+                    pendingCoverGrenade = false;
+                    decision.ThinkNow();
+                }
+                return command;
+            }
             if (canShoot && target != null)
             {
                 Vector3 aim = target.Chest.position + AimError(target.Chest.position);
@@ -709,6 +815,118 @@ namespace WarMission
                 AimPoint = look,
                 Aim = true,
             };
+        }
+
+        SoldierCommand Evade()
+        {
+            Vector3 dir = path.GetMoveDirection();
+            return LookAhead(dir, true);
+        }
+
+        /// <summary>Face the target spot, throw once facing it, then let the decision maker pick the next move.</summary>
+        SoldierCommand ThrowGrenade()
+        {
+            Vector3 look = new Vector3(grenadeTarget.x, transform.position.y + 1.5f, grenadeTarget.z);
+            var command = new SoldierCommand { AimPoint = look };
+            IssueGrenade(ref command);
+
+            bool done = grenadeIssued && grenades != null && !grenades.IsThrowing && Time.time - grenadeIssueTime > 0.3f;
+            if (done || Time.time > grenadeDeadline)
+            {
+                if (!grenadeIssued) lastGrenadeTime = Time.time;
+                SetState(State.Engage);
+                decision.ThinkNow();
+            }
+            return command;
+        }
+
+        /// <summary>Sets Grenade on the command the first frame the body faces the target.</summary>
+        void IssueGrenade(ref SoldierCommand command)
+        {
+            if (grenadeIssued || grenades == null || !grenades.CanThrow) return;
+            Vector3 to = grenadeTarget - transform.position;
+            to.y = 0f;
+            // Low cover: the soldier faces the cover (toward the threat). High cover: the peek faces out.
+            if (to.sqrMagnitude > 0.01f && Vector3.Angle(transform.forward, to) > 30f) return;
+            command.Grenade = true;
+            command.GrenadeTarget = grenadeTarget;
+            grenadeIssued = true;
+            grenadeIssueTime = Time.time;
+            lastGrenadeTime = Time.time;
+            Say(Callout.GrenadeOut, urgent: true);
+        }
+
+        /// <summary>
+        /// Running from live grenades comes before everything else. Returns true while evading.
+        /// </summary>
+        bool UpdateEvade()
+        {
+            Grenade danger = perception.DangerGrenade;
+            if (CurrentState == State.Evade)
+            {
+                // Keep running (or hold at the spot) until the grenade is gone or out of range.
+                if (danger != null && Time.time < moveDeadline) return true;
+                SetState(InCombat ? State.Engage : State.Investigate);
+                if (!InCombat) StartInvestigate(perception.LastHeardPosition);
+                decision.ThinkNow();
+                return false;
+            }
+            if (danger == null) return false;
+
+            Vector3 from = danger.Position;
+            if (!AITactics.FindRetreatPosition(transform.position, from, maxEvadePath, tacticsMask, out Vector3 spot))
+            {
+                Vector3 away = transform.position - from;
+                away.y = 0f;
+                if (away.sqrMagnitude < 0.01f) away = -transform.forward;
+                Vector3 candidate = transform.position + away.normalized * (danger.Radius + 2f);
+                spot = NavMesh.SamplePosition(candidate, out NavMeshHit hit, 3f, NavMesh.AllAreas) ? hit.position : candidate;
+            }
+            SetState(State.Evade);
+            BeginMove(spot, Mathf.Max(1.5f, danger.TimeLeft + 0.5f));
+            Say(Callout.Grenade, urgent: true);
+            return true;
+        }
+
+        /// <summary>Where to land a grenade: the visible target, else the freshest known enemy position.</summary>
+        Vector3 GrenadeAimPoint() =>
+            perception.Target != null ? perception.Target.transform.position : KnownEnemyPosition();
+
+        /// <summary>
+        /// A grenade is possible: one in hand, off cooldown, target in range and not next to a team mate.
+        /// Also counts enemies near the target spot (a group is a better target).
+        /// </summary>
+        bool CanThrowGrenadeAt(Vector3 threat, out int enemiesNear)
+        {
+            enemiesNear = 0;
+            if (grenades == null || !grenades.CanThrow || Time.time - lastGrenadeTime < grenadeCooldown) return false;
+            Vector3 point = GrenadeAimPoint();
+            float distance = FlatDistance(transform.position, point);
+            if (distance < minGrenadeDistance || distance > grenades.MaxRange) return false;
+
+            var members = TeamRegistry.Members;
+            float friendly = grenadeFriendlyRadius * grenadeFriendlyRadius;
+            for (int i = 0; i < members.Count; i++)
+            {
+                TeamMember other = members[i];
+                if (other == self || !other.IsAlive) continue;
+                float d = (other.transform.position - point).sqrMagnitude;
+                if (!self.IsEnemyOf(other))
+                {
+                    if (d < friendly) return false;
+                }
+                else if (d < 16f && perception.AwarenessOf(other) > 0f)
+                {
+                    enemiesNear++;
+                }
+            }
+            return true;
+        }
+
+        static bool IsInCoverOrLow(TeamMember member)
+        {
+            SoldierMotor motor = member.Motor;
+            return motor != null && (motor.IsInCover || motor.IsCrouched);
         }
 
         // ---------------------------------------------------------------- helpers
