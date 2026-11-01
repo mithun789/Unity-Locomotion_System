@@ -1,12 +1,19 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace WarMission
 {
     /// <summary>
-    /// ISoldierInput for AI. States: Patrol, Investigate, Engage, TakeCover, Dead.
-    /// Writes the same SoldierCommand the player does; movement goes through AIPathFollower.
-    /// With a Squad parent: walks the route in formation, reports sightings and answers squad reports.
-    /// With AICover: under fire it moves to cover, then hides and peeks to shoot.
+    /// ISoldierInput for AI. Writes the same SoldierCommand the player does; movement goes through AIPathFollower.
+    ///
+    /// Calm: Patrol, and Investigate gunshots or squad reports.
+    /// Fighting (enemy seen, or under fire, within combatMemory seconds): AIDecisionMaker scores the options
+    /// (engage, take cover, advance, flank, suppress, retreat, search) from what the soldier knows and its
+    /// AIPersonality, and the brain carries out the chosen intent with these states:
+    /// Engage (shoot while strafing), TakeCover (AICover: nearest, advance or fall-back cover), Flank,
+    /// Suppress (fire at the last known position), Retreat (no cover found), Investigate (search).
+    /// With a Squad parent: shares sightings, one flanker at a time, mates suppress for a flanker or a
+    /// reloading member, and morale drops as members die.
     /// </summary>
     [RequireComponent(typeof(AIPerception), typeof(AIPathFollower))]
     public class AISoldierBrain : MonoBehaviour, ISoldierInput
@@ -17,6 +24,9 @@ namespace WarMission
             Investigate,
             Engage,
             TakeCover,
+            Flank,
+            Suppress,
+            Retreat,
             Dead,
         }
 
@@ -31,12 +41,16 @@ namespace WarMission
         [SerializeField] float runDistance = 8f;
 
         [Header("Engage")]
-        [Tooltip("Seconds from first sight to first shot (min, max).")]
+        [Tooltip("Seconds from first sight to first shot (min, max), before personality.")]
         [SerializeField] Vector2 reactionDelay = new Vector2(0.3f, 0.6f);
         [SerializeField] Vector2Int burstShots = new Vector2Int(3, 6);
         [SerializeField] Vector2 burstPause = new Vector2(0.3f, 0.8f);
-        [Tooltip("Seconds without sight before going to look where the target was last seen.")]
+        [Tooltip("Seconds without sight before a new sighting needs the full reaction delay again.")]
         [SerializeField] float loseTargetTime = 1.5f;
+        [Tooltip("Seconds between strafe direction changes while shooting in the open (min, max).")]
+        [SerializeField] Vector2 strafeInterval = new Vector2(1.2f, 2.8f);
+        [Tooltip("Shooting at targets farther than this, careful soldiers kneel.")]
+        [SerializeField] float kneelDistance = 15f;
 
         [Header("Aim error (metres at the target)")]
         [SerializeField] float maxAimError = 1.2f;
@@ -45,13 +59,26 @@ namespace WarMission
         [SerializeField] float aimSettleTime = 2.5f;
         [SerializeField] float aimWobbleSpeed = 1.5f;
 
-        [Header("Cover")]
+        [Header("Fighting")]
+        [Tooltip("Stay in fight mode this long after the last sighting or shot at this soldier, in seconds.")]
+        [SerializeField] float combatMemory = 10f;
         [Tooltip("Hit or near-missed within this many seconds counts as under fire.")]
         [SerializeField] float underFireWindow = 1.5f;
-        [Tooltip("Seconds between cover searches while under fire in the open.")]
-        [SerializeField] float coverSearchInterval = 1f;
-        [Tooltip("Leave cover after this long without seeing or being shot at, in seconds.")]
-        [SerializeField] float coverGiveUpTime = 8f;
+        [Tooltip("Squad mates within this distance count as nearby support, in metres.")]
+        [SerializeField] float supportRadius = 25f;
+        [Tooltip("After a failed cover search, wait this long before trying again, in seconds.")]
+        [SerializeField] float coverRetryDelay = 2f;
+        [Tooltip("Seconds behind advance cover before bounding forward again.")]
+        [SerializeField] float advanceCooldown = 6f;
+        [SerializeField] float flankCooldown = 12f;
+        [Tooltip("Give up a flank after this many seconds.")]
+        [SerializeField] float flankTimeout = 12f;
+        [Tooltip("Longest walk to a flank spot, in metres.")]
+        [SerializeField] float maxFlankPath = 35f;
+        [SerializeField] float retreatCooldown = 10f;
+        [SerializeField] float maxRetreatPath = 25f;
+        [Tooltip("Scenery that blocks sight for flank and retreat spot checks.")]
+        [SerializeField] LayerMask tacticsMask = ~0;
 
         [Header("Friendly fire")]
         [SerializeField] LayerMask lineOfFireMask = ~0;
@@ -64,7 +91,8 @@ namespace WarMission
         TeamMember self;
         Squad squad;
         AICover cover;
-        float nextCoverSearch;
+        AIPersonality personality;
+        AIDecisionMaker decision;
 
         int patrolIndex;
         float waitUntil;
@@ -77,7 +105,35 @@ namespace WarMission
         int burstLeft;
         float noiseSeed;
 
+        // Fight bookkeeping.
+        float combatStart;
+        float nextApplyRetry;
+        float coverFailTime = float.NegativeInfinity;
+        float advanceFailTime = float.NegativeInfinity;
+        float lastAdvanceTime = float.NegativeInfinity;
+        float flankFailTime = float.NegativeInfinity;
+        float lastFlankEnd = float.NegativeInfinity;
+        float retreatFailTime = float.NegativeInfinity;
+        float lastRetreatTime = float.NegativeInfinity;
+        float searchingSighting = float.NegativeInfinity;
+        float searchedSighting = float.NegativeInfinity;
+        Vector3 movePoint;
+        float moveDeadline;
+        TeamMember reactingTo;
+        float lastHadTargetTime = float.NegativeInfinity;
+        int strafeDir;
+        float nextStrafeChange;
+        bool engageKneel;
+
         public State CurrentState { get; private set; } = State.Patrol;
+        public bool InCombat { get; private set; }
+        public bool IsAlive => health == null || !health.IsDead;
+        public AIIntent Intent => decision.Intent;
+        public AIDecisionMaker Decision => decision;
+        public AIPersonality Personality => personality;
+        public Squad Squad => squad;
+        /// <summary>Where the current flank or retreat is heading.</summary>
+        public Vector3 MovePoint => movePoint;
 
         void Awake()
         {
@@ -88,25 +144,64 @@ namespace WarMission
             self = GetComponent<TeamMember>();
             squad = GetComponentInParent<Squad>();
             cover = GetComponent<AICover>();
+            // Older prefabs: add the thinking parts if the prefab builder has not been re-run.
+            personality = GetOrAdd<AIPersonality>();
+            decision = GetOrAdd<AIDecisionMaker>();
+            GetOrAdd<AIDebugLabel>();
             noiseSeed = Random.value * 100f;
             burstLeft = Random.Range(burstShots.x, burstShots.y + 1);
         }
 
+        T GetOrAdd<T>() where T : Component => TryGetComponent(out T c) ? c : gameObject.AddComponent<T>();
+
         void OnEnable()
         {
-            if (weapon != null) weapon.Fired += OnFired;
+            if (weapon != null)
+            {
+                weapon.Fired += OnFired;
+                weapon.ReloadStarted += OnReloadStarted;
+                weapon.HitTarget += OnHitTarget;
+            }
+            if (health != null) health.Died += OnDied;
+            if (squad != null) squad.Register(this);
         }
 
         void OnDisable()
         {
-            if (weapon != null) weapon.Fired -= OnFired;
+            if (weapon != null)
+            {
+                weapon.Fired -= OnFired;
+                weapon.ReloadStarted -= OnReloadStarted;
+                weapon.HitTarget -= OnHitTarget;
+            }
+            if (health != null) health.Died -= OnDied;
+            if (squad != null) squad.Unregister(this);
         }
 
         void OnFired()
         {
             if (--burstLeft > 0) return;
-            burstLeft = Random.Range(burstShots.x, burstShots.y + 1);
+            // Disciplined shooters fire shorter bursts with tighter pauses.
+            int max = personality.Discipline > 0.7f ? Mathf.Max(burstShots.x, burstShots.y - 2) : burstShots.y;
+            burstLeft = Random.Range(burstShots.x, max + 1);
             nextBurstTime = Time.time + Random.Range(burstPause.x, burstPause.y);
+        }
+
+        void OnReloadStarted()
+        {
+            if (squad != null) squad.CallReloading(this);
+        }
+
+        void OnHitTarget(Health target, bool killed)
+        {
+            if (killed && squad != null && target != null && target.TryGetComponent(out TeamMember member) && self.IsEnemyOf(member))
+                squad.OnEnemyKilled();
+        }
+
+        void OnDied(DamageInfo damage)
+        {
+            SetState(State.Dead);
+            if (squad != null) squad.OnMemberDied(this);
         }
 
         public SoldierCommand GetCommand()
@@ -116,6 +211,9 @@ namespace WarMission
             {
                 case State.Engage: return Engage();
                 case State.TakeCover: return InCover();
+                case State.Flank: return Flank();
+                case State.Suppress: return Suppress();
+                case State.Retreat: return Retreat();
                 case State.Investigate: return Investigate();
                 case State.Patrol: return Patrol();
                 default: return SoldierCommand.Idle(transform);
@@ -126,46 +224,26 @@ namespace WarMission
 
         void UpdateState()
         {
-            if (health != null && health.IsDead)
+            if (!IsAlive)
             {
-                CurrentState = State.Dead;
+                SetState(State.Dead);
                 return;
             }
 
             if (perception.Target != null && squad != null) squad.Report(perception.Target.transform.position);
+            TrackReaction();
 
-            if (CurrentState == State.TakeCover && StayInCover()) return;
-
-            // Under fire in the open: get to cover.
-            if (cover != null && CurrentState != State.TakeCover && perception.IsUnderFire(underFireWindow)
-                && Time.time >= nextCoverSearch)
+            bool squadContact = InCombat && squad != null && Time.time - squad.LastReportTime < 3f;
+            bool contact = perception.Target != null || Time.time - perception.LastContactTime < combatMemory || squadContact;
+            if (contact)
             {
-                nextCoverSearch = Time.time + coverSearchInterval;
-                if (cover.TryTakeCover(ThreatPosition()))
-                {
-                    CurrentState = State.TakeCover;
-                    fireAllowedTime = Time.time + Random.Range(reactionDelay.x, reactionDelay.y);
-                    return;
-                }
-            }
-
-            if (perception.Target != null)
-            {
-                if (CurrentState != State.Engage)
-                {
-                    CurrentState = State.Engage;
-                    path.Stop();
-                    fireAllowedTime = Time.time + Random.Range(reactionDelay.x, reactionDelay.y);
-                }
+                if (!InCombat) EnterCombat();
+                Think();
                 return;
             }
+            if (InCombat) LeaveCombat();
 
-            if (CurrentState == State.Engage)
-            {
-                if (Time.time - perception.LastSeenTime > loseTargetTime) StartInvestigate(perception.LastSeenPosition);
-                return;
-            }
-
+            // Calm: react to noise and squad reports.
             if (perception.LastHeardTime > handledHeardTime)
             {
                 handledHeardTime = perception.LastHeardTime;
@@ -178,45 +256,305 @@ namespace WarMission
             }
         }
 
-        /// <summary>Keep using cover; false when it no longer makes sense (state has been changed).</summary>
-        bool StayInCover()
+        /// <summary>A fresh sighting needs the reaction delay before the first shot; a quick re-sighting less.</summary>
+        void TrackReaction()
+        {
+            TeamMember target = perception.Target;
+            if (target != null)
+            {
+                if (target != reactingTo)
+                {
+                    float delay = Random.Range(reactionDelay.x, reactionDelay.y) * Mathf.Lerp(1.3f, 0.75f, personality.Discipline);
+                    if (Time.time - lastHadTargetTime < loseTargetTime) delay *= 0.4f;
+                    fireAllowedTime = Mathf.Max(fireAllowedTime, Time.time + delay);
+                    reactingTo = target;
+                }
+                lastHadTargetTime = Time.time;
+            }
+            else if (Time.time - lastHadTargetTime > loseTargetTime)
+            {
+                reactingTo = null;
+            }
+        }
+
+        void EnterCombat()
+        {
+            InCombat = true;
+            combatStart = Time.time;
+            decision.BeginFight(AIIntent.Engage);
+            if (CurrentState != State.TakeCover) SetState(State.Engage);
+        }
+
+        void LeaveCombat()
+        {
+            InCombat = false;
+            handledHeardTime = perception.LastHeardTime;
+            if (squad != null) handledSquadTime = squad.LastReportTime;
+            if (CurrentState == State.Investigate) return;
+            if (KnownEnemyTime() > searchedSighting) StartSearch();
+            else
+            {
+                SetState(State.Patrol);
+                path.Stop();
+            }
+        }
+
+        void Think()
+        {
+            AIIntent intent = decision.Decide(BuildContext(), out bool changed);
+            if (changed || (!StateMatches(intent) && Time.time >= nextApplyRetry)) ApplyIntent(intent);
+            UpdateCombatState();
+        }
+
+        AIContext BuildContext()
+        {
+            Vector3 threat = ThreatPosition();
+            float knownTime = KnownEnemyTime();
+            bool knowsEnemy = !float.IsNegativeInfinity(knownTime);
+            float now = Time.time;
+            bool advancing = CurrentState == State.TakeCover && cover != null && cover.CurrentMode == CoverSearch.Advance
+                             && now - lastAdvanceTime < advanceCooldown;
+
+            return new AIContext
+            {
+                Health = health != null ? health.Current / Mathf.Max(1f, health.MaxHealth) : 1f,
+                Ammo = weapon != null ? (float)weapon.Ammo / Mathf.Max(1, weapon.MagazineSize) : 1f,
+                HasTarget = perception.Target != null,
+                TargetDistance = FlatDistance(transform.position, threat),
+                TimeSinceSeen = knowsEnemy ? now - knownTime : 999f,
+                Suppression = perception.Suppression,
+                UnderFire = perception.IsUnderFire(underFireWindow),
+                VisibleEnemies = perception.VisibleEnemyCount,
+                NearbyAllies = CountNearbyAllies(),
+                Morale = squad != null ? squad.Morale : 1f,
+                InCover = CurrentState == State.TakeCover && cover != null && cover.IsInPosition,
+                CanUseCover = cover != null && now - coverFailTime > coverRetryDelay,
+                CanFlank = knowsEnemy && (squad == null || squad.IsFlankFree(this))
+                           && now - lastFlankEnd > flankCooldown && now - flankFailTime > flankCooldown * 0.5f,
+                CanAdvance = knowsEnemy && !advancing && now - advanceFailTime > 4f,
+                CanRetreat = now - lastRetreatTime > retreatCooldown && now - retreatFailTime > 3f,
+                CanSearch = knowsEnemy && knownTime > searchedSighting,
+                TeamNeedsCover = squad != null && squad.NeedsCoveringFire(this),
+                CombatTime = now - combatStart,
+            };
+        }
+
+        /// <summary>Is the current state already carrying out this intent?</summary>
+        bool StateMatches(AIIntent intent)
+        {
+            switch (intent)
+            {
+                case AIIntent.Engage: return CurrentState == State.Engage;
+                case AIIntent.TakeCover: return CurrentState == State.TakeCover;
+                case AIIntent.Advance:
+                    return CurrentState == State.TakeCover && cover.CurrentMode == CoverSearch.Advance
+                           && Time.time - lastAdvanceTime < advanceCooldown;
+                case AIIntent.Flank: return CurrentState == State.Flank;
+                case AIIntent.Suppress:
+                    return CurrentState == State.Suppress || (CurrentState == State.TakeCover && cover.IsInPosition);
+                case AIIntent.Retreat:
+                    return CurrentState == State.Retreat || (CurrentState == State.TakeCover && cover.CurrentMode == CoverSearch.Fallback);
+                case AIIntent.Search: return CurrentState == State.Investigate;
+            }
+            return false;
+        }
+
+        void ApplyIntent(AIIntent intent)
+        {
+            nextApplyRetry = Time.time + 0.5f;
+            Vector3 threat = ThreatPosition();
+            switch (intent)
+            {
+                case AIIntent.Engage:
+                    SetState(State.Engage);
+                    break;
+
+                case AIIntent.TakeCover:
+                    if (cover != null && cover.TryTakeCover(threat)) SetState(State.TakeCover);
+                    else Failed(ref coverFailTime);
+                    break;
+
+                case AIIntent.Advance:
+                    if (cover != null && cover.TryTakeCover(threat, CoverSearch.Advance))
+                    {
+                        lastAdvanceTime = Time.time;
+                        SetState(State.TakeCover);
+                    }
+                    else Failed(ref advanceFailTime);
+                    break;
+
+                case AIIntent.Retreat:
+                    if (cover != null && cover.TryTakeCover(threat, CoverSearch.Fallback))
+                    {
+                        lastRetreatTime = Time.time;
+                        SetState(State.TakeCover);
+                    }
+                    else if (AITactics.FindRetreatPosition(transform.position, threat, maxRetreatPath, tacticsMask, out Vector3 retreatSpot))
+                    {
+                        BeginMove(retreatSpot, 10f);
+                        SetState(State.Retreat);
+                    }
+                    else Failed(ref retreatFailTime);
+                    break;
+
+                case AIIntent.Flank:
+                {
+                    int side = squad != null ? (transform.GetSiblingIndex() % 2 == 0 ? 1 : -1) : 0;
+                    if ((squad == null || squad.TryClaimFlank(this))
+                        && AITactics.FindFlankPosition(transform.position, threat, side, maxFlankPath, tacticsMask, out Vector3 flankSpot))
+                    {
+                        BeginMove(flankSpot, flankTimeout);
+                        SetState(State.Flank);
+                    }
+                    else
+                    {
+                        if (squad != null && CurrentState != State.Flank) squad.ReleaseFlank(this);
+                        Failed(ref flankFailTime);
+                    }
+                    break;
+                }
+
+                case AIIntent.Suppress:
+                    // In cover the peeks fire at the last known position; in the open, stand and fire.
+                    if (!(CurrentState == State.TakeCover && cover.IsInPosition)) SetState(State.Suppress);
+                    break;
+
+                case AIIntent.Search:
+                    StartSearch();
+                    break;
+            }
+        }
+
+        /// <summary>The intent could not be carried out: remember when, keep fighting, rethink soon.</summary>
+        void Failed(ref float failTime)
+        {
+            failTime = Time.time;
+            decision.ThinkNow();
+            if (CurrentState == State.Patrol || CurrentState == State.Investigate) SetState(State.Engage);
+        }
+
+        /// <summary>Per-frame checks for the current fight state: arrivals, timeouts, being flanked.</summary>
+        void UpdateCombatState()
+        {
+            switch (CurrentState)
+            {
+                case State.TakeCover:
+                    UpdateCover();
+                    break;
+
+                case State.Flank:
+                    if (path.IsAtDestination || Time.time > moveDeadline)
+                    {
+                        SetState(State.Engage);
+                        decision.ThinkNow();
+                    }
+                    break;
+
+                case State.Retreat:
+                    if (path.IsAtDestination || Time.time > moveDeadline)
+                    {
+                        lastRetreatTime = Time.time;
+                        SetState(State.Engage);
+                        decision.ThinkNow();
+                    }
+                    break;
+            }
+        }
+
+        void UpdateCover()
         {
             if (cover == null || !cover.HasCover)
             {
-                CurrentState = State.Engage;
-                return false;
+                SetState(State.Engage);
+                decision.ThinkNow();
+                return;
             }
 
             Vector3 threat = ThreatPosition();
             if (!cover.Current.Protects(threat) && !cover.TryTakeCover(threat))
             {
                 // Flanked and nowhere better to go: fight from here.
-                cover.Leave();
-                CurrentState = State.Engage;
-                return false;
+                coverFailTime = Time.time;
+                SetState(State.Engage);
+                decision.ThinkNow();
+                return;
             }
 
-            bool quiet = perception.Target == null && Time.time - perception.LastSeenTime > coverGiveUpTime
-                         && !perception.IsUnderFire(coverGiveUpTime * 0.5f);
-            if (quiet)
-            {
-                cover.Leave();
-                StartInvestigate(perception.LastSeenPosition);
-            }
-            return true;
+            // Pinned down: stay low longer; aggressive soldiers peek sooner and longer.
+            float suppression = perception.Suppression;
+            cover.HideScale = Mathf.Clamp(1f + 1.5f * suppression + 0.5f * personality.Caution - 0.4f * personality.Aggression, 0.6f, 3f);
+            cover.PeekScale = Mathf.Clamp(Mathf.Lerp(0.8f, 1.3f, personality.Aggression) * (1f - 0.4f * suppression), 0.4f, 1.5f);
+            if (suppression > 0.75f && cover.IsPeeking && perception.IsUnderFire(0.3f)) cover.Duck();
         }
 
-        /// <summary>Best guess of where the enemy is: in sight, last shot from, or last seen.</summary>
+        void SetState(State next)
+        {
+            if (next == CurrentState) return;
+            State previous = CurrentState;
+            if (previous == State.Flank)
+            {
+                lastFlankEnd = Time.time;
+                if (squad != null) squad.ReleaseFlank(this);
+            }
+            if (previous == State.TakeCover && cover != null) cover.Leave();
+            if (next == State.Engage || next == State.Suppress || next == State.Dead) path.Stop();
+            CurrentState = next;
+        }
+
+        void BeginMove(Vector3 point, float timeout)
+        {
+            movePoint = point;
+            moveDeadline = Time.time + timeout;
+            path.SetDestination(point);
+        }
+
+        /// <summary>Best guess of where the enemy is: in sight, last shot from, last seen, or reported by the squad.</summary>
         Vector3 ThreatPosition()
         {
             if (perception.Target != null) return perception.Target.transform.position;
             if (perception.IsUnderFire(5f)) return perception.LastThreatPosition;
-            return perception.LastSeenTime > perception.LastUnderFireTime ? perception.LastSeenPosition : perception.LastThreatPosition;
+            return KnownEnemyPosition();
+        }
+
+        /// <summary>Freshest known enemy position: own sighting (predicted on), squad report, or last shot from.</summary>
+        Vector3 KnownEnemyPosition()
+        {
+            bool ownSighting = perception.LastSeenTime >= perception.LastUnderFireTime;
+            Vector3 own = ownSighting ? perception.PredictedTargetPosition(2f) : perception.LastThreatPosition;
+            float ownTime = Mathf.Max(perception.LastSeenTime, perception.LastUnderFireTime);
+            if (squad != null && squad.LastReportTime > ownTime) return squad.LastReportPosition;
+            return own;
+        }
+
+        float KnownEnemyTime()
+        {
+            float time = Mathf.Max(perception.LastSeenTime, perception.LastUnderFireTime);
+            return squad != null ? Mathf.Max(time, squad.LastReportTime) : time;
+        }
+
+        int CountNearbyAllies()
+        {
+            int count = 0;
+            var members = TeamRegistry.Members;
+            float range = supportRadius * supportRadius;
+            for (int i = 0; i < members.Count; i++)
+            {
+                TeamMember other = members[i];
+                if (other == self || !other.IsAlive || self.IsEnemyOf(other)) continue;
+                if ((other.transform.position - transform.position).sqrMagnitude <= range) count++;
+            }
+            return count;
+        }
+
+        void StartSearch()
+        {
+            searchingSighting = KnownEnemyTime();
+            StartInvestigate(KnownEnemyPosition());
         }
 
         void StartInvestigate(Vector3 point)
         {
-            CurrentState = State.Investigate;
+            SetState(State.Investigate);
             // Squad mates spread out around the spot instead of all running to the same point.
             if (squad != null) point += squad.SlotOffset(transform, point - transform.position);
             investigatePoint = point;
@@ -261,12 +599,14 @@ namespace WarMission
                 return moving;
             }
 
-            // Arrived: sweep the view left and right, then go back to patrol.
+            // Arrived: sweep the view left and right, then go back to patrol (or let the fight logic decide).
             if (float.IsPositiveInfinity(searchUntil)) searchUntil = Time.time + searchTime;
             if (Time.time >= searchUntil)
             {
-                CurrentState = State.Patrol;
+                searchedSighting = Mathf.Max(searchedSighting, searchingSighting);
+                SetState(State.Patrol);
                 path.Stop();
+                decision.ThinkNow();
             }
             float sweep = Mathf.Sin(Time.time * 1.2f) * 70f;
             Vector3 look = Quaternion.Euler(0f, sweep, 0f) * FlatForwardTo(investigatePoint);
@@ -282,7 +622,14 @@ namespace WarMission
                 Vector3 aim = target.Chest.position + AimError(target.Chest.position);
                 command.AimPoint = aim;
                 command.Aim = true;
-                command.Fire = Time.time >= fireAllowedTime && Time.time >= nextBurstTime && IsFacing(aim) && LineOfFireClear(aim);
+                command.Fire = CanFireAt(aim);
+            }
+            else if (canShoot && decision.Intent == AIIntent.Suppress)
+            {
+                Vector3 aim = SuppressPoint();
+                command.AimPoint = aim;
+                command.Aim = true;
+                command.Fire = CanFireAt(aim);
             }
             // Reload while tucked away rather than while exposed.
             command.Reload = weapon != null && weapon.Ammo < weapon.MagazineSize / 3 && !canShoot;
@@ -294,22 +641,116 @@ namespace WarMission
             TeamMember target = perception.Target;
             if (target == null)
             {
-                // Briefly lost: keep aiming where the target was, hold fire.
-                return new SoldierCommand { AimPoint = perception.LastSeenPosition + Vector3.up * 1.3f, Aim = true };
+                // Briefly lost: keep aiming where the target probably is, hold fire, top up the magazine.
+                return new SoldierCommand
+                {
+                    AimPoint = KnownEnemyPosition() + Vector3.up * 1.3f,
+                    Aim = true,
+                    Crouch = engageKneel,
+                    Reload = weapon != null && weapon.Ammo < weapon.MagazineSize / 2,
+                };
             }
 
             Vector3 aim = target.Chest.position + AimError(target.Chest.position);
-            bool canFire = Time.time >= fireAllowedTime && Time.time >= nextBurstTime && IsFacing(aim) && LineOfFireClear(aim);
+            Vector3 move = StrafeDirection(target.transform.position);
             return new SoldierCommand
             {
+                Move = SoldierCommand.WorldToMove(move, transform.position, aim) * 0.7f,
                 AimPoint = aim,
                 Aim = true,
-                Fire = canFire,
+                Crouch = engageKneel,
+                Fire = CanFireAt(aim),
                 Reload = weapon != null && weapon.Ammo == 0,
             };
         }
 
+        /// <summary>Fire at the last known position to keep the enemy's head down.</summary>
+        SoldierCommand Suppress()
+        {
+            Vector3 aim = perception.Target != null
+                ? perception.Target.Chest.position + AimError(perception.Target.Chest.position)
+                : SuppressPoint();
+            return new SoldierCommand
+            {
+                AimPoint = aim,
+                Aim = true,
+                Crouch = personality.Caution > 0.5f,
+                Fire = CanFireAt(aim),
+                Reload = weapon != null && weapon.Ammo == 0,
+            };
+        }
+
+        SoldierCommand Flank()
+        {
+            Vector3 dir = path.GetMoveDirection();
+            TeamMember target = perception.Target;
+            // Sprint on the long leg; walk and shoot near the end or when the enemy shows up close.
+            bool sprint = path.RemainingDistance > 6f && (target == null || FlatDistance(transform.position, target.transform.position) > 15f);
+            if (sprint) return LookAhead(dir, true);
+
+            Vector3 aim = target != null ? target.Chest.position + AimError(target.Chest.position) : KnownEnemyPosition() + Vector3.up * 1.3f;
+            return new SoldierCommand
+            {
+                Move = SoldierCommand.WorldToMove(dir, transform.position, aim),
+                AimPoint = aim,
+                Aim = true,
+                Fire = target != null && CanFireAt(aim),
+            };
+        }
+
+        SoldierCommand Retreat()
+        {
+            Vector3 dir = path.GetMoveDirection();
+            if (path.RemainingDistance > 3f) return LookAhead(dir, true);
+            Vector3 look = ThreatPosition() + Vector3.up * 1.3f;
+            return new SoldierCommand
+            {
+                Move = SoldierCommand.WorldToMove(dir, transform.position, look),
+                AimPoint = look,
+                Aim = true,
+            };
+        }
+
         // ---------------------------------------------------------------- helpers
+
+        bool CanFireAt(Vector3 aim) =>
+            Time.time >= fireAllowedTime && Time.time >= nextBurstTime && IsFacing(aim) && LineOfFireClear(aim);
+
+        /// <summary>Last known enemy position at chest height, with a wide wobble.</summary>
+        Vector3 SuppressPoint()
+        {
+            Vector3 point = KnownEnemyPosition() + Vector3.up * 1.2f;
+            return point + AimError(point) * 1.5f;
+        }
+
+        /// <summary>
+        /// Sidestep while shooting in the open so the soldier is harder to hit. Aggressive soldiers move more,
+        /// careful ones kneel at range. Flips when the NavMesh ends on that side.
+        /// </summary>
+        Vector3 StrafeDirection(Vector3 targetPosition)
+        {
+            if (Time.time >= nextStrafeChange)
+            {
+                nextStrafeChange = Time.time + Random.Range(strafeInterval.x, strafeInterval.y);
+                float still = Mathf.Lerp(0.6f, 0.15f, personality.Aggression);
+                strafeDir = Random.value < still ? 0 : (Random.value < 0.5f ? -1 : 1);
+                engageKneel = FlatDistance(transform.position, targetPosition) > kneelDistance && Random.value < personality.Caution;
+                if (engageKneel) strafeDir = 0;
+            }
+            if (strafeDir == 0) return Vector3.zero;
+
+            Vector3 toTarget = targetPosition - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude < 0.01f) return Vector3.zero;
+            Vector3 right = Vector3.Cross(Vector3.up, toTarget.normalized);
+            Vector3 dir = right * strafeDir;
+            if (NavMesh.Raycast(transform.position, transform.position + dir * 1.2f, out _, NavMesh.AllAreas))
+            {
+                strafeDir = -strafeDir;
+                dir = -dir;
+            }
+            return dir;
+        }
 
         /// <summary>Walk (or run) along moveDirection while looking the same way.</summary>
         SoldierCommand LookAhead(Vector3 moveDirection, bool run)
@@ -333,6 +774,12 @@ namespace WarMission
             return dir.sqrMagnitude > 0.01f ? dir.normalized : transform.forward;
         }
 
+        static float FlatDistance(Vector3 a, Vector3 b)
+        {
+            a.y = b.y = 0f;
+            return Vector3.Distance(a, b);
+        }
+
         /// <summary>False when the first thing along the shot is a teammate.</summary>
         bool LineOfFireClear(Vector3 aimPoint)
         {
@@ -340,6 +787,7 @@ namespace WarMission
             Vector3 origin = weapon.Muzzle.position;
             Vector3 dir = aimPoint - origin;
             float distance = dir.magnitude;
+            if (distance < 0.01f) return true;
             int count = Physics.RaycastNonAlloc(origin, dir / distance, fireHits, distance, lineOfFireMask, QueryTriggerInteraction.Ignore);
 
             float closest = float.MaxValue;
@@ -373,11 +821,16 @@ namespace WarMission
             return Vector3.Angle(transform.forward, dir) < 20f;
         }
 
-        /// <summary>Smooth wobble around the target that shrinks while the target stays in sight.</summary>
+        /// <summary>
+        /// Smooth wobble around the target that shrinks while the target stays in sight. Disciplined soldiers
+        /// aim tighter; suppressed soldiers aim worse.
+        /// </summary>
         Vector3 AimError(Vector3 targetPoint)
         {
             float settle = Mathf.Clamp01((Time.time - perception.TargetVisibleSince) / aimSettleTime);
-            float radius = Mathf.Lerp(maxAimError, minAimError, settle);
+            float radius = Mathf.Lerp(maxAimError, minAimError, settle)
+                           * Mathf.Lerp(1.3f, 0.75f, personality.Discipline)
+                           * (1f + perception.Suppression);
             float t = Time.time * aimWobbleSpeed;
             float x = (Mathf.PerlinNoise(t, noiseSeed) - 0.5f) * 2f;
             float y = (Mathf.PerlinNoise(noiseSeed, t) - 0.5f) * 2f;
