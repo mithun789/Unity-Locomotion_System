@@ -377,6 +377,19 @@ Still missing from Mixamo: rifle crouch idle (a generated kneel is used), straig
   - **War Mission > Add Mission To Open Scene** (`Editor/MissionSetupTool.cs`): Mission object with spawn points
     32 m ahead of the player on the NavMesh, objectives "Eliminate the enemy waves" then "Reach the extraction
     point" (18 m behind the start, hold 5 s). Re-running replaces it.
+- Rifle scope (user request 2026-11-02, cloud, NOT compiled in Unity), waiting for playtest:
+  - Model: Build Soldier Prefab adds a primitive scope ("Scope" under the rifle: tube, bells, lenses, turrets,
+    rings) on every rifle. Height from the M4 mesh bounds (logged); `ScopeCentreZ` 0.12 / `ScopeRaise` 0.042 move it.
+  - `WeaponScope` (player): hold aim = look through the scope. Blend 0.2 s; overlay from blend 0.75. Magnification
+    2x / 4x / 6x (scroll, D-pad up/down), FOV = 2 atan(tan(base/2) / mag). Sway 0.4 deg Perlin + breathing bob,
+    x2.5 moving, x0.6 crouched; hold breath (Shift / left stick press) x0.1 for 4 s, then x1.8 for 2 s.
+    Spread x0.25, move speed x0.55, camera kick 0.45 deg up +/-0.15 yaw per shot. No scope while reloading,
+    throwing, traversing or sprinting. V / D-pad left toggles scope vs shoulder aim.
+  - `ThirdPersonCamera`: moves to the eye (`scopeEyeOffset` from the pivot), scope FOV, sway on the view (the
+    aim point follows), recoil. `ScopeBodyHider` sets the soldier's renderers to shadows-only while scoped.
+  - `ScopeOverlay` (IMGUI): lens mask with vignette, duplex reticle with ticks, red dot, scope-in fade,
+    magnification and breath bar. `PlayerHud` hides its crosshair while scoped, shows "Aim: scope (V)".
+  - `SoldierWeapon.SpreadScale` (new, 1 = normal). Runtime fallback: PlayerSoldierInput adds the scope parts.
 - Milestone 5: built, waiting for user playtest.
   - `CoverPoint` (+ static registry): Low (crouch behind, stand to shoot over) or High (corner, step out
     `PeekSide` 0.9 m to shoot). Forward faces the cover; `Protects(threat)` within 65°. One occupant.

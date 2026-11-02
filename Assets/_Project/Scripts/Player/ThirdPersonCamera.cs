@@ -29,6 +29,10 @@ namespace WarMission
         [Tooltip("Look sensitivity multiplier while zoomed.")]
         [SerializeField] float aimSensitivityScale = 0.7f;
 
+        [Header("Scope")]
+        [Tooltip("Eye position through the scope, from the pivot in camera space (x right, y up, z forward).")]
+        [SerializeField] Vector3 scopeEyeOffset = new Vector3(0.1f, 0.02f, 0.18f);
+
         [Header("Look")]
         [Tooltip("Degrees per mouse pixel.")]
         [SerializeField] float mouseSensitivity = 0.12f;
@@ -45,6 +49,8 @@ namespace WarMission
         readonly RaycastHit[] hits = new RaycastHit[16];
         Camera viewCamera;
         PlayerSoldierInput targetInput;
+        WeaponScope targetScope;
+        float thirdPersonFov;
         SoldierTraversal targetTraversal;
         Transform targetHips;
         float normalFieldOfView;
@@ -66,6 +72,7 @@ namespace WarMission
             }
             viewCamera = GetComponent<Camera>();
             if (viewCamera != null) normalFieldOfView = viewCamera.fieldOfView;
+            thirdPersonFov = normalFieldOfView;
         }
 
         void OnEnable() { mouseLook.Enable(); stickLook.Enable(); LockCursor(true); }
@@ -85,22 +92,37 @@ namespace WarMission
             if (target == null) return;
             float dt = Time.deltaTime;
 
+            // Scope: added at runtime on older prefabs, so look it up until found.
+            if (targetScope == null && targetInput != null) targetInput.TryGetComponent(out targetScope);
+            float scope = targetScope != null ? targetScope.EasedBlend : 0f;
+
             bool zoomed = targetInput != null && targetInput.AimHeld;
             if (viewCamera != null)
             {
                 float wantedFov = zoomed ? aimFieldOfView : normalFieldOfView;
-                viewCamera.fieldOfView = Mathf.Lerp(viewCamera.fieldOfView, wantedFov, 1f - Mathf.Exp(-zoomSharpness * dt));
+                thirdPersonFov = Mathf.Lerp(thirdPersonFov, wantedFov, 1f - Mathf.Exp(-zoomSharpness * dt));
+                viewCamera.fieldOfView = scope > 0f
+                    ? Mathf.Lerp(thirdPersonFov, targetScope.FieldOfView(normalFieldOfView), scope)
+                    : thirdPersonFov;
             }
 
             UpdateCursorLock();
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 float sensitivity = zoomed ? aimSensitivityScale : 1f;
+                if (scope > 0f) sensitivity = Mathf.Lerp(sensitivity, targetScope.SensitivityScale, scope);
                 Vector2 look = (mouseLook.ReadValue<Vector2>() * mouseSensitivity
                                 + stickLook.ReadValue<Vector2>() * (gamepadSensitivity * dt)) * sensitivity;
                 yaw += look.x;
                 pitch += invertY ? look.y : -look.y;
                 pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+            }
+            if (targetScope != null)
+            {
+                // Scoped shots kick the view up (the player pulls it back down).
+                Vector2 kick = targetScope.ConsumeRecoil();
+                yaw += kick.x;
+                pitch = Mathf.Clamp(pitch - kick.y, minPitch, maxPitch);
             }
 
             float blend = 1f - Mathf.Exp(-followSharpness * dt);
@@ -123,6 +145,15 @@ namespace WarMission
             Vector3 shoulder = pivot + rotation * Vector3.right * CastDistance(pivot, rotation * Vector3.right, shoulderOffset);
             Vector3 back = -(rotation * Vector3.forward);
             Vector3 position = shoulder + back * CastDistance(shoulder, back, distance);
+
+            if (scope > 0f)
+            {
+                // Move to the eye behind the scope; sway moves the view (and so the aim point) around.
+                Vector2 sway = targetScope.Sway * scope;
+                Quaternion scoped = Quaternion.Euler(pitch - sway.y, yaw + sway.x, 0f);
+                position = Vector3.Lerp(position, pivot + rotation * scopeEyeOffset, scope);
+                rotation = Quaternion.Slerp(rotation, scoped, scope);
+            }
 
             transform.SetPositionAndRotation(position, rotation);
         }

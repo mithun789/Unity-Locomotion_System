@@ -12,6 +12,7 @@ namespace WarMission
         [SerializeField] Health health;
         [SerializeField] Camera viewCamera;
         [SerializeField] SoldierGrenades grenades;
+        WeaponScope scope;
 
         [Header("Crosshair")]
         [SerializeField] Color crosshairColor = new Color(1f, 1f, 1f, 0.85f);
@@ -43,6 +44,7 @@ namespace WarMission
         void Start()
         {
             if (grenades == null) grenades = GetComponent<SoldierGrenades>();
+            scope = GetComponent<WeaponScope>();
         }
 
         void OnEnable()
@@ -93,7 +95,9 @@ namespace WarMission
             Vector2 c = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
             bool alive = health == null || !health.IsDead;
 
-            if (alive)
+            // The scope draws its own reticle.
+            bool scoped = scope != null && scope.IsScoped;
+            if (alive && !scoped)
             {
                 // Gap in pixels that matches the spread cone at screen distance.
                 float halfFov = viewCamera.fieldOfView * 0.5f * Mathf.Deg2Rad;
@@ -122,6 +126,8 @@ namespace WarMission
             GUI.Label(new Rect(Screen.width - 220f, Screen.height - 50f, 200f, 40f), ammo, labelStyle);
             if (grenades != null)
                 GUI.Label(new Rect(Screen.width - 220f, Screen.height - 86f, 200f, 40f), $"G  {grenades.Count}", labelStyle);
+            if (scope != null && !scoped)
+                GUI.Label(new Rect(Screen.width - 220f, Screen.height - 122f, 220f, 40f), scope.ScopeEnabled ? "Aim: scope (V)" : "Aim: shoulder (V)", labelStyle);
             if (health != null)
                 GUI.Label(new Rect(20f, Screen.height - 50f, 240f, 40f), alive ? $"HP {Mathf.CeilToInt(health.Current)}" : "DEAD", labelStyle);
         }

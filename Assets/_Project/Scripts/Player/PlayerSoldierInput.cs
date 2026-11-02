@@ -25,6 +25,7 @@ namespace WarMission
         readonly RaycastHit[] aimHits = new RaycastHit[16];
         InputAction move, aim, fire, reload, crouch, sprint, jump, takeCover, grenade;
         PlayerCover cover;
+        WeaponScope scope;
         bool crouched;
         float lastFireTime = float.NegativeInfinity;
 
@@ -35,6 +36,9 @@ namespace WarMission
         {
             if (aimCamera == null) aimCamera = Camera.main;
             cover = GetComponent<PlayerCover>();
+            // Older prefabs: the scope parts are added here until Build Soldier Prefab is re-run.
+            if (!TryGetComponent(out scope)) scope = gameObject.AddComponent<WeaponScope>();
+            if (!TryGetComponent(out ScopeOverlay _)) gameObject.AddComponent<ScopeOverlay>();
 
             move = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
             move.AddCompositeBinding("2DVector")
@@ -109,6 +113,8 @@ namespace WarMission
                 Grenade = grenade.WasPressedThisFrame(),
             };
             ApplyCover(ref command);
+            // Looking through the scope: slow, careful steps.
+            if (scope != null) command.Move *= scope.MoveScale;
             return command;
         }
 
