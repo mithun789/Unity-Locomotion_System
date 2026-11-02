@@ -360,6 +360,23 @@ Still missing from Mixamo: rifle crouch idle (a generated kneel is used), straig
     "Taking cover!", "Huh?". 6 s repeat cooldown. `SpokeLine` event is the hook for voice clips.
   - Debug label (F3) now also shows grenade, suspicion. Build Soldier Prefab adds SoldierGrenades (base) and
     AICallouts (AI variants); runtime fallbacks add them on older prefabs.
+- Review fixes (2026-11-02, cloud): evade end investigates the thrower (not an unset heard spot); grenade throw
+  allows 70 deg body offset (feet stay planted up to 60 deg); no grenade re-apply inside the cooldown; HDRP colours
+  only through properties the shader has; a sky / out-of-range grenade aim lands at max range on the ground.
+- Milestone 6: built (cloud, NOT compiled in Unity), waiting for playtest:
+  - `MissionManager`: objectives in order, Briefing (3 s title) -> Running -> Won / Lost (player dies). Enter or
+    gamepad Start restarts. Tracks time, kills, accuracy. Disables `PlayerRestart` on the player.
+  - `MissionObjective` base; `EliminateWavesObjective` (WaveSpawner done) and `ReachZoneObjective` (radius, hold
+    time, paused while enemy AI is within 15 m: "Zone contested!", HUD marker).
+  - `WaveSpawner`: waves (default 3 / 4 / 5 soldiers, delays 4 / 8 / 8 s after the previous wave dies), each a new
+    `Squad` at the spawn point farthest from the player; `AISoldierBrain.Alert(position)` sends idle soldiers to
+    hunt near the player every 6 s (5 m error).
+  - `MissionHud` (IMGUI): mission name, objective list with progress, timer, objective marker with distance
+    (clamped to the screen edge), announcements, end screen with stats.
+  - `PlayerHud`: red damage-direction marker around the crosshair (1.2 s).
+  - **War Mission > Add Mission To Open Scene** (`Editor/MissionSetupTool.cs`): Mission object with spawn points
+    32 m ahead of the player on the NavMesh, objectives "Eliminate the enemy waves" then "Reach the extraction
+    point" (18 m behind the start, hold 5 s). Re-running replaces it.
 - Milestone 5: built, waiting for user playtest.
   - `CoverPoint` (+ static registry): Low (crouch behind, stand to shoot over) or High (corner, step out
     `PeekSide` 0.9 m to shoot). Forward faces the cover; `Protects(threat)` within 65°. One occupant.

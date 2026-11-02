@@ -145,6 +145,7 @@ namespace WarMission
         float grenadeIssueTime;
         bool pendingCoverGrenade;
         float grenadeDeadline;
+        Vector3 evadeFrom;
 
         public State CurrentState { get; private set; } = State.Patrol;
         public bool InCombat { get; private set; }
@@ -213,6 +214,16 @@ namespace WarMission
         {
             if (squad != null) squad.CallReloading(this);
             if (InCombat) Say(Callout.Reloading);
+        }
+
+        /// <summary>
+        /// Order from outside (mission spawner, scripted event): go and look at this spot. Ignored while
+        /// fighting or dodging a grenade; the soldier's own perception takes over once it sees something.
+        /// </summary>
+        public void Alert(Vector3 position)
+        {
+            if (!IsAlive || InCombat || CurrentState == State.Evade) return;
+            StartInvestigate(position);
         }
 
         /// <summary>Shout a callout (shown above the head).</summary>
@@ -476,6 +487,11 @@ namespace WarMission
                     break;
 
                 case AIIntent.Grenade:
+                    if (Time.time - lastGrenadeTime < grenadeCooldown || grenades == null || !grenades.CanThrow)
+                    {
+                        decision.ThinkNow();
+                        break;
+                    }
                     grenadeTarget = GrenadeAimPoint();
                     grenadeIssued = false;
                     if (CurrentState == State.TakeCover && cover.IsInPosition)
@@ -847,7 +863,8 @@ namespace WarMission
             Vector3 to = grenadeTarget - transform.position;
             to.y = 0f;
             // Low cover: the soldier faces the cover (toward the threat). High cover: the peek faces out.
-            if (to.sqrMagnitude > 0.01f && Vector3.Angle(transform.forward, to) > 30f) return;
+            // Standing soldiers keep their feet planted up to the turn-in-place angle (60 deg), so allow 70.
+            if (to.sqrMagnitude > 0.01f && Vector3.Angle(transform.forward, to) > 70f) return;
             command.Grenade = true;
             command.GrenadeTarget = grenadeTarget;
             grenadeIssued = true;
@@ -866,14 +883,15 @@ namespace WarMission
             {
                 // Keep running (or hold at the spot) until the grenade is gone or out of range.
                 if (danger != null && Time.time < moveDeadline) return true;
-                SetState(InCombat ? State.Engage : State.Investigate);
-                if (!InCombat) StartInvestigate(perception.LastHeardPosition);
+                if (InCombat) SetState(State.Engage);
+                else StartInvestigate(evadeFrom);
                 decision.ThinkNow();
                 return false;
             }
             if (danger == null) return false;
 
             Vector3 from = danger.Position;
+            evadeFrom = danger.ThrowerTeam != null ? danger.ThrowerTeam.transform.position : from;
             if (!AITactics.FindRetreatPosition(transform.position, from, maxEvadePath, tacticsMask, out Vector3 spot))
             {
                 Vector3 away = transform.position - from;

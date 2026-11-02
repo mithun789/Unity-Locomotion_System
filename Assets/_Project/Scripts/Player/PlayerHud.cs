@@ -22,8 +22,15 @@ namespace WarMission
         [Header("Hit marker")]
         [SerializeField] float hitMarkerTime = 0.15f;
 
+        [Header("Damage direction")]
+        [Tooltip("Seconds a red marker points toward whoever hit the player.")]
+        [SerializeField] float damageMarkerTime = 1.2f;
+        [SerializeField] float damageMarkerRadius = 110f;
+
         float hitMarkerEnd;
         bool lastHitKilled;
+        Vector3 damageFrom;
+        float damageMarkerEnd;
         GUIStyle labelStyle;
 
         void Awake()
@@ -41,11 +48,35 @@ namespace WarMission
         void OnEnable()
         {
             if (weapon != null) weapon.HitTarget += OnHitTarget;
+            if (health != null) health.Damaged += OnDamaged;
         }
 
         void OnDisable()
         {
             if (weapon != null) weapon.HitTarget -= OnHitTarget;
+            if (health != null) health.Damaged -= OnDamaged;
+        }
+
+        void OnDamaged(DamageInfo damage)
+        {
+            damageFrom = damage.Source != null ? damage.Source.transform.position : damage.Point - damage.Direction * 10f;
+            damageMarkerEnd = Time.time + damageMarkerTime;
+        }
+
+        /// <summary>Red bar on a circle around the crosshair, pointing toward the attacker (up = in front).</summary>
+        void DrawDamageMarker(Vector2 centre)
+        {
+            if (Time.time >= damageMarkerEnd) return;
+            Vector3 to = damageFrom - viewCamera.transform.position;
+            Vector3 forward = viewCamera.transform.forward;
+            to.y = forward.y = 0f;
+            if (to.sqrMagnitude < 0.01f || forward.sqrMagnitude < 0.0001f) return;
+            float angle = Vector3.SignedAngle(forward, to, Vector3.up);
+            float alpha = Mathf.Clamp01((damageMarkerEnd - Time.time) / (damageMarkerTime * 0.5f));
+            var old = GUI.matrix;
+            GUIUtility.RotateAroundPivot(angle, centre);
+            DrawRect(centre.x - 30f, centre.y - damageMarkerRadius - 6f, 60f, 6f, new Color(1f, 0.15f, 0.1f, 0.85f * alpha));
+            GUI.matrix = old;
         }
 
         void OnHitTarget(Health target, bool killed)
@@ -72,6 +103,8 @@ namespace WarMission
                 DrawRect(c.x - gap - lineLength, c.y - lineThickness * 0.5f, lineLength, lineThickness, crosshairColor);
                 DrawRect(c.x + gap, c.y - lineThickness * 0.5f, lineLength, lineThickness, crosshairColor);
             }
+
+            if (alive) DrawDamageMarker(c);
 
             if (Time.time < hitMarkerEnd)
             {

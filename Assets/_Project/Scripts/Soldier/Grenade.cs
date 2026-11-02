@@ -142,7 +142,7 @@ namespace WarMission
             {
                 material = renderer.material;
                 var color = new Color(1f, 0.55f, 0.15f);
-                material.color = color;
+                if (material.HasProperty("_Color")) material.SetColor("_Color", color);
                 if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
                 if (material.HasProperty("_EmissiveColor")) material.SetColor("_EmissiveColor", color * 2000f);
             }

@@ -22,6 +22,8 @@ namespace WarMission
         [SerializeField] float maxThrowSpeed = 22f;
         [SerializeField] float fuseTime = 3f;
         [SerializeField] float grenadeSize = 0.12f;
+        [Tooltip("Ground for landing spots past max range.")]
+        [SerializeField] LayerMask groundMask = ~0;
 
         Animator animator;
         Transform hand;
@@ -62,7 +64,13 @@ namespace WarMission
             target = command.GrenadeTarget.sqrMagnitude > 0.0001f ? command.GrenadeTarget : command.AimPoint;
             Vector3 flat = target - transform.position;
             flat.y = 0f;
-            if (flat.magnitude > maxRange) target = transform.position + flat.normalized * maxRange + Vector3.up * (target.y - transform.position.y);
+            if (flat.magnitude > maxRange)
+            {
+                // Aimed past the range (or at the sky): land at max range, on whatever ground is there.
+                target = transform.position + flat.normalized * maxRange;
+                if (Physics.Raycast(target + Vector3.up * 6f, Vector3.down, out RaycastHit ground, 20f, groundMask, QueryTriggerInteraction.Ignore))
+                    target = ground.point;
+            }
 
             IsThrowing = true;
             released = false;
@@ -86,7 +94,7 @@ namespace WarMission
             {
                 Material m = renderer.material;
                 var color = new Color(0.22f, 0.27f, 0.18f);
-                m.color = color;
+                if (m.HasProperty("_Color")) m.SetColor("_Color", color);
                 if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", color);
             }
 

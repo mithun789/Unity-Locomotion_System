@@ -59,6 +59,8 @@ scores in `AIDecisionMaker.Score` (M5 rule: AI under fire in the open must still
 Pass 2 (same day, also not compiled in Unity): grenades (player G + AI throw + AI dodge), gradual spotting with
 suspicion, footstep hearing, threat-based target choice, danger zones, callouts (F4). Also run Build Soldier
 Animator (new `Throw` state). Check: grenade arc lands on target, blast hurts through no walls, AI runs from it.
+Milestone 6 (2026-11-02, cloud, not compiled in Unity): mission scripts + War Mission > Add Mission To Open
+Scene. Test in TestRange (or a copy): add the mission, save, play: waves hunt the player, then extraction.
 
 **Cover polish after the user's screenshots** (code done and compiled, **not yet play-tested**):
 - Low cover = kneel facing the cover with the rifle (crouch states), not back-to-wall. Animator only keeps `CoverHigh` (back-to-wall, `InCover` bool); `CoverLow` param is always false.
