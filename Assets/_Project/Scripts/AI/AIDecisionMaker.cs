@@ -19,6 +19,8 @@ namespace WarMission
         Retreat,
         /// <summary>Hunt for the enemy where it was last seen.</summary>
         Search,
+        /// <summary>Throw a frag at an enemy hiding behind cover or bunched up.</summary>
+        Grenade,
     }
 
     /// <summary>Snapshot of what the soldier knows, gathered by the brain before each decision.</summary>
@@ -42,6 +44,9 @@ namespace WarMission
         public bool CanSearch;          // the last sighting has not been searched yet
         public bool TeamNeedsCover;     // a squad mate is flanking or reloading
         public float CombatTime;        // seconds since this fight started
+        public bool CanGrenade;         // has a grenade, target in range, no friendlies near the target
+        public bool TargetHidden;       // enemy out of sight or crouched / in cover
+        public int EnemiesNearTarget;   // enemies within a blast radius of the grenade target
     }
 
     /// <summary>
@@ -52,7 +57,7 @@ namespace WarMission
     [RequireComponent(typeof(AIPersonality))]
     public class AIDecisionMaker : MonoBehaviour
     {
-        public const int IntentCount = 7;
+        public const int IntentCount = 8;
 
         [Tooltip("Seconds between decisions (plus a little jitter).")]
         [SerializeField] float thinkInterval = 0.3f;
@@ -199,6 +204,18 @@ namespace WarMission
             Set(AIIntent.Suppress, suppress);
             Set(AIIntent.Retreat, retreat);
             Set(AIIntent.Search, search);
+
+            // Grenade: flush an enemy out of cover, or catch a group.
+            float grenade = 0f;
+            if (c.CanGrenade && c.TimeSinceSeen < 8f)
+            {
+                grenade = 0.2f + 0.3f * aggression - 0.4f * c.Suppression;
+                if (c.TargetHidden) grenade += 0.3f;
+                if (c.EnemiesNearTarget > 1) grenade += 0.15f * Mathf.Min(3, c.EnemiesNearTarget - 1);
+                if (c.InCover && c.CombatTime > 6f) grenade += 0.1f;   // stalemate behind cover
+                if (c.TargetDistance < 10f) grenade -= 0.2f;
+            }
+            Set(AIIntent.Grenade, grenade);
         }
 
         void Set(AIIntent intent, float score)

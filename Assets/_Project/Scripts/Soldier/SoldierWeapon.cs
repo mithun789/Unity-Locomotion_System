@@ -46,6 +46,8 @@ namespace WarMission
         public int MagazineSize => magazineSize;
         public bool IsReloading { get; private set; }
         public float CurrentSpread { get; private set; }
+        /// <summary>Spread multiplier from outside (a scope steadies the shot). 1 = normal.</summary>
+        public float SpreadScale { get; set; } = 1f;
         public Transform Muzzle => muzzle;
 
         public event Action Fired;
@@ -76,7 +78,7 @@ namespace WarMission
         {
             shotSpread = Mathf.Max(0f, shotSpread - spreadRecovery * dt);
             float moveFactor = Mathf.Clamp01(motor.Velocity.magnitude / 3f);
-            CurrentSpread = (baseSpread + moveSpread * moveFactor + shotSpread) * (motor.IsCrouched ? crouchSpreadMultiplier : 1f);
+            CurrentSpread = (baseSpread + moveSpread * moveFactor + shotSpread) * (motor.IsCrouched ? crouchSpreadMultiplier : 1f) * SpreadScale;
 
             if (IsReloading)
             {

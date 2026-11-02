@@ -13,6 +13,8 @@ namespace WarMission
         public bool Crouch;
         public bool Sprint;
         public bool Jump;          // true on the frame the jump starts
+        public bool Grenade;       // true on the frame a grenade throw starts
+        public Vector3 GrenadeTarget; // where the grenade should land; zero = AimPoint
 
         // Cover: back against a wall. The body faces CoverForward (into the cover; the cover clips turn the
         // pose around), slides along the wall and is held at CoverAnchor's distance from it.

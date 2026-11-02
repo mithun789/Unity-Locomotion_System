@@ -46,6 +46,7 @@ namespace WarMission.EditorTools
                 GetOrAdd<TeamMember>(root);
                 var health = GetOrAdd<Health>(root);
                 GetOrAdd<SoldierWeapon>(root);
+                GetOrAdd<SoldierGrenades>(root);
                 GetOrAdd<SoldierAim>(root);
                 GetOrAdd<SoldierRagdoll>(root);
                 GetOrAdd<WeaponGrip>(root);
@@ -62,9 +63,9 @@ namespace WarMission.EditorTools
 
             Material allyBody = LoadOrCreateMaterial("Team_Ally", "HDRP/Lit", new Color(0.25f, 0.42f, 0.75f), 0f);
             Material enemyBody = LoadOrCreateMaterial("Team_Enemy", "HDRP/Lit", new Color(0.72f, 0.26f, 0.2f), 0f);
-            BuildVariant(PlayerPath, Team.Ally, allyBody, typeof(PlayerCover), typeof(PlayerSoldierInput), typeof(PlayerHud), typeof(PlayerRestart));
-            BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel));
-            BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel));
+            BuildVariant(PlayerPath, Team.Ally, allyBody, typeof(PlayerCover), typeof(PlayerSoldierInput), typeof(WeaponScope), typeof(ScopeOverlay), typeof(PlayerHud), typeof(PlayerRestart));
+            BuildVariant(AllyPath, Team.Ally, allyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel), typeof(AICallouts));
+            BuildVariant(EnemyPath, Team.Enemy, enemyBody, typeof(AIPerception), typeof(AIPathFollower), typeof(AICover), typeof(AIPersonality), typeof(AIDecisionMaker), typeof(AISoldierBrain), typeof(AIDebugLabel), typeof(AICallouts));
 
             // Imported bodies (see ImportedAssetBuilder): Ghost (the hero) for the player and allies,
             // Polish soldier for enemies.
@@ -253,7 +254,84 @@ namespace WarMission.EditorTools
             muzzle.SetLocalPositionAndRotation(toRifle * (muzzlePoint - rightPalm), toRifle);
 
             effects = BuildEffects(rifle, muzzle);
+            BuildScope(rifle, m4.transform);
             return rifle;
+        }
+
+        /// <summary>Scope centre along the bore (metres forward of the right palm) and its gap above the rail.</summary>
+        const float ScopeCentreZ = 0.12f;
+        const float ScopeRaise = 0.042f;
+
+        /// <summary>
+        /// Rifle scope from primitives on top of the receiver: tube, objective and eyepiece bells, lenses,
+        /// turrets and two mount rings. The rail height is measured from the M4's mesh bounds over the
+        /// receiver; ScopeCentreZ / ScopeRaise move it.
+        /// </summary>
+        static void BuildScope(Transform rifle, Transform m4)
+        {
+            DestroyChild(rifle, "Scope");
+            Material body = LoadOrCreateMaterial("Scope_Body", "HDRP/Lit", new Color(0.05f, 0.05f, 0.055f), 0f);
+            Material lens = LoadOrCreateMaterial("Scope_Lens", "HDRP/Lit", new Color(0.08f, 0.16f, 0.22f), 0.6f);
+
+            float rail = RailTop(rifle, m4, ScopeCentreZ - 0.12f, ScopeCentreZ + 0.12f);
+            var scope = new GameObject("Scope").transform;
+            scope.SetParent(rifle, false);
+            scope.localPosition = new Vector3(0f, rail + ScopeRaise, ScopeCentreZ);
+
+            // Cylinder primitives run along Y (height 2 at scale 1): rotate 90 on X to lie along the bore.
+            Vector3 alongBore = new Vector3(90f, 0f, 0f);
+            AddPart(scope, "Tube", PrimitiveType.Cylinder, Vector3.zero, alongBore, new Vector3(0.03f, 0.13f, 0.03f), body);
+            AddPart(scope, "Objective", PrimitiveType.Cylinder, new Vector3(0f, 0.004f, 0.15f), alongBore, new Vector3(0.05f, 0.035f, 0.05f), body);
+            AddPart(scope, "ObjectiveCone", PrimitiveType.Cylinder, new Vector3(0f, 0.002f, 0.11f), alongBore, new Vector3(0.04f, 0.02f, 0.04f), body);
+            AddPart(scope, "Eyepiece", PrimitiveType.Cylinder, new Vector3(0f, 0f, -0.14f), alongBore, new Vector3(0.042f, 0.03f, 0.042f), body);
+            AddPart(scope, "FrontLens", PrimitiveType.Cylinder, new Vector3(0f, 0.004f, 0.186f), alongBore, new Vector3(0.044f, 0.002f, 0.044f), lens);
+            AddPart(scope, "RearLens", PrimitiveType.Cylinder, new Vector3(0f, 0f, -0.171f), alongBore, new Vector3(0.036f, 0.002f, 0.036f), lens);
+            AddPart(scope, "Elevation", PrimitiveType.Cylinder, new Vector3(0f, 0.022f, 0f), Vector3.zero, new Vector3(0.022f, 0.012f, 0.022f), body);
+            AddPart(scope, "Windage", PrimitiveType.Cylinder, new Vector3(0.022f, 0f, 0f), new Vector3(0f, 0f, 90f), new Vector3(0.02f, 0.01f, 0.02f), body);
+
+            // Rings from the rail up to the tube.
+            float ringHeight = ScopeRaise;
+            foreach (float z in new[] { -0.06f, 0.06f })
+            {
+                AddPart(scope, z < 0f ? "RingRear" : "RingFront", PrimitiveType.Cube, new Vector3(0f, -ringHeight * 0.5f, z), Vector3.zero,
+                        new Vector3(0.026f, ringHeight, 0.014f), body);
+                AddPart(scope, z < 0f ? "RingRearCap" : "RingFrontCap", PrimitiveType.Cylinder, new Vector3(0f, 0f, z), alongBore,
+                        new Vector3(0.036f, 0.007f, 0.036f), body);
+            }
+        }
+
+        /// <summary>Highest point of the rifle model (rifle space, metres) over a stretch of the bore.</summary>
+        static float RailTop(Transform rifle, Transform m4, float zMin, float zMax)
+        {
+            float top = float.NegativeInfinity;
+            foreach (MeshFilter filter in m4.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter.sharedMesh == null) continue;
+                Bounds b = filter.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = b.center + Vector3.Scale(b.extents, new Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1) * 2f - Vector3.one);
+                    Vector3 p = rifle.InverseTransformPoint(filter.transform.TransformPoint(corner));
+                    if (p.z >= zMin && p.z <= zMax) top = Mathf.Max(top, p.y);
+                }
+            }
+            // No corner inside the stretch (one big mesh): use the whole model's top, which is close on an M4.
+            if (float.IsNegativeInfinity(top))
+            {
+                foreach (MeshFilter filter in m4.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (filter.sharedMesh == null) continue;
+                    Bounds b = filter.sharedMesh.bounds;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        Vector3 corner = b.center + Vector3.Scale(b.extents, new Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1) * 2f - Vector3.one);
+                        top = Mathf.Max(top, rifle.InverseTransformPoint(filter.transform.TransformPoint(corner)).y);
+                    }
+                }
+            }
+            if (float.IsNegativeInfinity(top)) top = 0.09f;
+            Debug.Log($"[SoldierPrefabBuilder] Scope rail height {top:0.000} m above the grip");
+            return top;
         }
 
         static WeaponEffects BuildEffects(Transform rifle, Transform muzzle)

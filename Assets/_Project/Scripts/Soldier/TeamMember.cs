@@ -19,10 +19,18 @@ namespace WarMission
         public bool IsAlive => Health == null || !Health.IsDead;
         public Transform Head { get; private set; }
         public Transform Chest { get; private set; }
+        public SoldierMotor Motor { get; private set; }
+        /// <summary>Last time this soldier fired (firing makes a soldier easy to spot).</summary>
+        public float LastShotTime { get; private set; } = float.NegativeInfinity;
+        /// <summary>How many enemy AI currently have this soldier as their target (they spread their fire).</summary>
+        public int TargetedBy { get; set; }
+        SoldierWeapon weapon;
 
         void Awake()
         {
             Health = GetComponent<Health>();
+            Motor = GetComponent<SoldierMotor>();
+            weapon = GetComponent<SoldierWeapon>();
             var animator = GetComponentInChildren<Animator>();
             Head = Bone(animator, HumanBodyBones.Head);
             Chest = Bone(animator, HumanBodyBones.UpperChest) ?? Bone(animator, HumanBodyBones.Chest) ?? transform;
@@ -32,8 +40,19 @@ namespace WarMission
         static Transform Bone(Animator animator, HumanBodyBones bone) =>
             animator != null && animator.isHuman ? animator.GetBoneTransform(bone) : null;
 
-        void OnEnable() => TeamRegistry.Register(this);
-        void OnDisable() => TeamRegistry.Unregister(this);
+        void OnEnable()
+        {
+            TeamRegistry.Register(this);
+            if (weapon != null) weapon.Fired += OnFired;
+        }
+
+        void OnDisable()
+        {
+            TeamRegistry.Unregister(this);
+            if (weapon != null) weapon.Fired -= OnFired;
+        }
+
+        void OnFired() => LastShotTime = Time.time;
 
         public bool IsEnemyOf(TeamMember other) => other != null && other.team != team;
     }

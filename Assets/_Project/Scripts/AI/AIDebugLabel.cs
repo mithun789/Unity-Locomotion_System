@@ -13,7 +13,7 @@ namespace WarMission
         static bool visible;
         static int toggledFrame = -1;
 
-        [SerializeField] float heightAboveHead = 0.45f;
+        [SerializeField] float heightAboveHead = 0.9f;
         [SerializeField] float maxDistance = 60f;
 
         static GUIStyle style;
@@ -84,7 +84,9 @@ namespace WarMission
             float hp = health != null ? health.Current : 0f;
             string ammo = weapon != null ? $"{weapon.Ammo}/{weapon.MagazineSize}" : "-";
             string morale = brain.Squad != null ? $"  M{brain.Squad.Morale:0.00}" : "";
-            string stats = $"HP {hp:0}  Ammo {ammo}  Sup {perception.Suppression:0.00}{morale}";
+            string nades = brain.HasGrenades ? "  G" : "";
+            string aware = perception.Suspicion > 0f ? $"  Sus {perception.Suspicion:0.00}" : "";
+            string stats = $"HP {hp:0}  Ammo {ammo}{nades}  Sup {perception.Suppression:0.00}{morale}{aware}";
 
             if (!brain.InCombat) return $"{head}\n{traits}\n{stats}";
             return $"{head}\n{TopScores()}\n{traits}\n{stats}";

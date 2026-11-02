@@ -23,8 +23,9 @@ namespace WarMission
         [SerializeField] bool crouchToggle = true;
 
         readonly RaycastHit[] aimHits = new RaycastHit[16];
-        InputAction move, aim, fire, reload, crouch, sprint, jump, takeCover;
+        InputAction move, aim, fire, reload, crouch, sprint, jump, takeCover, grenade;
         PlayerCover cover;
+        WeaponScope scope;
         bool crouched;
         float lastFireTime = float.NegativeInfinity;
 
@@ -35,6 +36,9 @@ namespace WarMission
         {
             if (aimCamera == null) aimCamera = Camera.main;
             cover = GetComponent<PlayerCover>();
+            // Older prefabs: the scope parts are added here until Build Soldier Prefab is re-run.
+            if (!TryGetComponent(out scope)) scope = gameObject.AddComponent<WeaponScope>();
+            if (!TryGetComponent(out ScopeOverlay _)) gameObject.AddComponent<ScopeOverlay>();
 
             move = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
             move.AddCompositeBinding("2DVector")
@@ -51,6 +55,7 @@ namespace WarMission
             sprint = Button("Sprint", "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
             jump = Button("Jump", "<Keyboard>/space", "<Gamepad>/buttonSouth");
             takeCover = Button("Cover", "<Keyboard>/q", "<Gamepad>/rightShoulder");
+            grenade = Button("Grenade", "<Keyboard>/g", "<Gamepad>/buttonNorth");
         }
 
         static InputAction Button(string name, params string[] bindings)
@@ -62,17 +67,17 @@ namespace WarMission
 
         void OnEnable()
         {
-            move.Enable(); aim.Enable(); fire.Enable(); reload.Enable(); crouch.Enable(); sprint.Enable(); jump.Enable(); takeCover.Enable();
+            move.Enable(); aim.Enable(); fire.Enable(); reload.Enable(); crouch.Enable(); sprint.Enable(); jump.Enable(); takeCover.Enable(); grenade.Enable();
         }
 
         void OnDisable()
         {
-            move.Disable(); aim.Disable(); fire.Disable(); reload.Disable(); crouch.Disable(); sprint.Disable(); jump.Disable(); takeCover.Disable();
+            move.Disable(); aim.Disable(); fire.Disable(); reload.Disable(); crouch.Disable(); sprint.Disable(); jump.Disable(); takeCover.Disable(); grenade.Disable();
         }
 
         void OnDestroy()
         {
-            move.Dispose(); aim.Dispose(); fire.Dispose(); reload.Dispose(); crouch.Dispose(); sprint.Dispose(); jump.Dispose(); takeCover.Dispose();
+            move.Dispose(); aim.Dispose(); fire.Dispose(); reload.Dispose(); crouch.Dispose(); sprint.Dispose(); jump.Dispose(); takeCover.Dispose(); grenade.Dispose();
         }
 
         public SoldierCommand GetCommand()
@@ -105,8 +110,11 @@ namespace WarMission
                 Crouch = crouched,
                 Sprint = sprinting,
                 Jump = jump.WasPressedThisFrame(),
+                Grenade = grenade.WasPressedThisFrame(),
             };
             ApplyCover(ref command);
+            // Looking through the scope: slow, careful steps.
+            if (scope != null) command.Move *= scope.MoveScale;
             return command;
         }
 
